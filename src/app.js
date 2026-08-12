@@ -12,7 +12,25 @@ const app = express();
 
 // Middlewares
 app.use(helmet());
-app.use(cors({ origin: function (origin, callback) { callback(null, true); }, credentials: true }));
+const corsOptions = {
+    origin: (origin, callback) => {
+        callback(null, true); 
+    },
+    credentials: true,
+    optionsSuccessStatus: 200,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'X-Requested-With',
+        'Accept',
+        'Origin',
+        'X-Branch-Id',   // Custom header for POS branch management
+        'Cache-Control',
+        'Pragma'
+    ]
+};
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
