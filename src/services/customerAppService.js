@@ -14,10 +14,35 @@ class CustomerAppService {
   }
 
   async getMyTransactions(customerId) {
-    return await db.sequelize.query(
-      `SELECT id, type, amount, balance_after, created_at FROM transactions WHERE customer_id = :customerId ORDER BY created_at DESC LIMIT 100`,
+    const transactions = await db.sequelize.query(
+      `SELECT t.id, t.type, t.amount, t.created_at, t.transaction_date, a.name as account_name
+       FROM transactions t 
+       JOIN accounts a ON a.id = t.account_id
+       WHERE t.customer_id = :customerId 
+         AND a.code = '1100' -- Only AR account
+       ORDER BY COALESCE(t.transaction_date, t.created_at) ASC, t.id ASC`,
       { replacements: { customerId }, type: db.sequelize.QueryTypes.SELECT }
     );
+
+    const customer = await db.sequelize.query(
+      `SELECT opening_balance FROM customers WHERE id = :customerId`,
+      { replacements: { customerId }, type: db.sequelize.QueryTypes.SELECT }
+    );
+    
+    let balance = parseFloat(customer[0]?.opening_balance || 0);
+    const ledger = transactions.map(t => {
+      if (t.type === 'debit') {
+        balance += parseFloat(t.amount);
+      } else {
+        balance -= parseFloat(t.amount);
+      }
+      return {
+        ...t,
+        balance_after: balance
+      };
+    });
+    
+    return ledger.reverse().slice(0, 100);
   }
 
   async getMyLoans(customerId) {

@@ -1,4 +1,5 @@
 const db = require('../models');
+const bcrypt = require('bcryptjs');
 
 class AdminService {
   async getStats() {
@@ -72,6 +73,60 @@ class AdminService {
       attributes: ['id', 'name', 'price_monthly', 'price_yearly', 'max_customers', 'trial_days'],
       order: [['id', 'ASC']]
     });
+  }
+
+  async createShop(data) {
+    const existingShop = await db.Shop.findOne({ where: { phone: data.phone } });
+    if (existingShop) {
+      throw { statusCode: 409, message: 'Phone already registered to a shop' };
+    }
+
+    const transaction = await db.sequelize.transaction();
+    try {
+      const shop = await db.Shop.create({
+        name: data.name,
+        address: data.address,
+        business_type: data.business_type,
+        language_pref: data.language_pref || 'sinhala',
+        phone: data.phone,
+        subscription_status: data.subscription_status || 'trial',
+        plan_id: data.plan_id || null,
+        is_active: data.is_active !== undefined ? data.is_active : true
+      }, { transaction });
+
+      if (data.owner_name && data.password) {
+        const hash = await bcrypt.hash(data.password, 10);
+        await db.User.create({
+          shop_id: shop.id,
+          name: data.owner_name,
+          phone: data.phone,
+          nic: data.owner_nic,
+          password_hash: hash,
+          role: 'owner',
+        }, { transaction });
+      }
+
+      await transaction.commit();
+      return shop;
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  }
+
+  async deleteShop(shopId) {
+    const transaction = await db.sequelize.transaction();
+    try {
+      await db.User.destroy({ where: { shop_id: shopId }, transaction });
+      const deleted = await db.Shop.destroy({ where: { id: shopId }, transaction });
+      if (!deleted) throw { statusCode: 404, message: 'Shop not found' };
+      
+      await transaction.commit();
+      return { message: 'Shop deleted successfully' };
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
   }
 }
 

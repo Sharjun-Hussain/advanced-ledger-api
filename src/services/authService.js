@@ -37,7 +37,7 @@ class AuthService {
         address: data.address,
         business_type: data.businessType,
         language_pref: data.languagePref || 'sinhala',
-        subscription_status: 'trial'
+        subscription_status: data.is_auto_verified ? 'active' : 'trial'
       }, { transaction });
 
       const hash = await bcrypt.hash(data.password, 10);
@@ -45,6 +45,7 @@ class AuthService {
         shop_id: shop.id,
         name: data.ownerName,
         phone: data.phone,
+        nic: data.ownerNic,
         password_hash: hash,
         role: 'owner',
       }, { transaction });

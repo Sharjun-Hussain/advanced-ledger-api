@@ -7,15 +7,23 @@ const login = Joi.object({
 
 const register = Joi.object({
   shopName: Joi.string().min(2).max(150).required(),
+  ownerNic: Joi.string().min(10).max(20).required(),
   ownerName: Joi.string().min(2).max(100).required(),
   phone: Joi.string().min(9).max(20).required(),
   password: Joi.string().min(6).required(),
   address: Joi.string().max(255).optional().allow('', null),
   businessType: Joi.string().max(80).optional().allow('', null),
-  languagePref: Joi.string().valid('sinhala', 'tamil', 'english').default('sinhala')
+  languagePref: Joi.string().valid('sinhala', 'tamil', 'english').default('sinhala'),
+  is_auto_verified: Joi.boolean().default(false)
+});
+
+const adminLogin = Joi.object({
+  email: Joi.string().required(),
+  password: Joi.string().required(),
 });
 
 module.exports = {
   login,
+  adminLogin,
   register,
 };

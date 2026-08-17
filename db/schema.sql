@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS users (
   shop_id       INT          NULL,                      -- NULL for platform admins
   name          VARCHAR(100) NOT NULL,
   phone         VARCHAR(20)  NOT NULL UNIQUE,
+  nic           VARCHAR(20)  NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   role          ENUM('owner','staff','admin') NOT NULL DEFAULT 'staff',
   permissions   JSON         NULL,                      -- staff: e.g. ["customers:write","loans:write"]
@@ -63,6 +64,7 @@ CREATE TABLE IF NOT EXISTS customers (
   customer_code   VARCHAR(20)  NOT NULL,                -- unique per shop
   name            VARCHAR(100) NOT NULL,
   phone           VARCHAR(20)  NULL,
+  nic             VARCHAR(20)  NULL,
   qr_code         VARCHAR(64)  NOT NULL UNIQUE,         -- unique token encoded into QR
   type            ENUM('daily','weekly','monthly','custom') NOT NULL DEFAULT 'daily',
   custom_cycle_days INT        NULL,                    -- when type = 'custom'
@@ -201,5 +203,6 @@ ON DUPLICATE KEY UPDATE price_monthly = VALUES(price_monthly), price_yearly = VA
  ) ; 
  
  A L T E R   T A B L E   s h o p s   A D D   C O L U M N   t e x t l k _ e n a b l e d   B O O L E A N   N O T   N U L L   D E F A U L T   F A L S E ; 
-  
+ 
+ 
  

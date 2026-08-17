@@ -5,6 +5,7 @@ module.exports = (sequelize, DataTypes) => {
     customer_code: { type: DataTypes.STRING(20), allowNull: false },
     name: { type: DataTypes.STRING(100), allowNull: false },
     phone: { type: DataTypes.STRING(20), allowNull: true },
+    nic: { type: DataTypes.STRING(20), allowNull: true },
     qr_code: { type: DataTypes.STRING(64), allowNull: false, unique: true },
     type: { type: DataTypes.ENUM('daily', 'weekly', 'monthly', 'custom'), allowNull: false, defaultValue: 'daily' },
     custom_cycle_days: { type: DataTypes.INTEGER, allowNull: true },

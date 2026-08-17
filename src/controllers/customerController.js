@@ -115,6 +115,59 @@ class CustomerController {
       console.error('[SMS ERROR] Failed to send payment SMS:', err.message);
     }
   }
+  async getCustomerLedger(req, res, next) {
+    try {
+      const accountingService = require('../services/accountingService');
+      const { Account, Transaction } = require('../models');
+      const { id } = req.params;
+      const { from_date, to_date } = req.query;
+
+      const customer = await customerService.getCustomer(req.user.shop_id, Number(id));
+
+      const arAccount = await Account.findOne({
+          where: { shop_id: req.user.shop_id, code: '1100' }
+      });
+
+      if (!arAccount) {
+          return res.status(500).json({ status: 'error', message: 'Accounts Receivable account not found.' });
+      }
+
+      const where = {
+          customer_id: id,
+          account_id: arAccount.id
+      };
+      
+      const { Op } = require('sequelize');
+      if (from_date && to_date) {
+          where.transaction_date = {
+              [Op.between]: [new Date(from_date), new Date(to_date)]
+          };
+      }
+
+      const transactions = await Transaction.findAll({
+          where,
+          include: [{ model: Account, as: 'account' }],
+          order: [['transaction_date', 'ASC'], ['id', 'ASC']]
+      });
+
+      let balance = parseFloat(customer.balance || 0);
+      const ledger = transactions.map(t => {
+          if (t.type === 'debit') {
+              balance += parseFloat(t.amount);
+          } else {
+              balance -= parseFloat(t.amount);
+          }
+          return {
+              ...t.toJSON(),
+              balance
+          };
+      });
+
+      return res.status(200).json({ customer, ledger, current_balance: balance });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = new CustomerController();

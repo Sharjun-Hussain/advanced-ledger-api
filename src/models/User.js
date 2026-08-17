@@ -3,6 +3,7 @@ module.exports = (sequelize, DataTypes) => {
     shop_id: { type: DataTypes.INTEGER, allowNull: true },
     name: { type: DataTypes.STRING(100), allowNull: false },
     phone: { type: DataTypes.STRING(20), allowNull: false, unique: true },
+    nic: { type: DataTypes.STRING(20), allowNull: true, unique: true },
     password_hash: { type: DataTypes.STRING(255), allowNull: false },
     role: { type: DataTypes.ENUM('owner', 'staff', 'admin'), allowNull: false, defaultValue: 'staff' },
     permissions: { type: DataTypes.JSON, allowNull: true },

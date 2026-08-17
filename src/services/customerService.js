@@ -1,5 +1,6 @@
 const db = require('../models');
 const crypto = require('crypto');
+const accountingService = require('./accountingService');
 
 class CustomerService {
   async getCustomers(shopId, { search = '', page = 1, limit = 50, kind = 'customer', qr }) {
@@ -126,14 +127,42 @@ class CustomerService {
         }
       }
 
-      await db.Transaction.create({
+      // 1. Get AR Account
+      const [arAccount] = await db.Account.findOrCreate({
+        where: { shop_id: shopId, code: '1100' },
+        defaults: { name: 'Accounts Receivable', type: 'asset' },
+        transaction
+      });
+
+      // 2. Get Cash Account
+      const [cashAccount] = await db.Account.findOrCreate({
+        where: { shop_id: shopId, code: '1000' },
+        defaults: { name: 'Cash', type: 'asset' },
+        transaction
+      });
+
+      // 3. Record Accounting Transactions (Credit AR, Debit Cash)
+      await accountingService.recordTransaction({
         shop_id: shopId,
+        account_id: arAccount.id,
         customer_id: customerId,
-        type: 'payment',
         amount: amount,
-        balance_after: newBalance,
-        created_by: userId
-      }, { transaction });
+        type: 'credit',
+        reference_type: 'Payment',
+        transaction_date: new Date(),
+        description: `Loan Payment from ${customer.name}`
+      }, transaction);
+
+      await accountingService.recordTransaction({
+        shop_id: shopId,
+        account_id: cashAccount.id,
+        customer_id: customerId,
+        amount: amount,
+        type: 'debit',
+        reference_type: 'Payment',
+        transaction_date: new Date(),
+        description: `Loan Payment from ${customer.name} (Cash)`
+      }, transaction);
 
       await transaction.commit();
       return { balance: newBalance };
@@ -149,7 +178,8 @@ class CustomerService {
       { replacements: { shopId, customerId }, type: db.sequelize.QueryTypes.SELECT }
     );
     const transactions = await db.sequelize.query(
-      `SELECT id, type, amount, balance_after, created_at FROM transactions WHERE shop_id = :shopId AND customer_id = :customerId ORDER BY created_at DESC`,
+      // Retrieve AR account credits as payments if applicable, or just show the customer's ledger
+      `SELECT id, type, amount, created_at, reference_type FROM transactions WHERE shop_id = :shopId AND customer_id = :customerId AND amount > 0 ORDER BY transaction_date DESC`,
       { replacements: { shopId, customerId }, type: db.sequelize.QueryTypes.SELECT }
     );
     return { loans, transactions };

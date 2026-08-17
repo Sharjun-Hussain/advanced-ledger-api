@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const authController = require('../controllers/authController');
+const { authenticate } = require('../middleware/auth');
 
 const authRoutes = require('./auth.routes');
 const shopRoutes = require('./shop.routes');
@@ -11,6 +13,10 @@ const customerAppRoutes = require('./customer.app.routes');
 const adminRoutes = require('./admin.routes');
 const distributorRoutes = require('./distributor.routes');
 const textlkRoutes = require('./textlk.routes');
+const accountRoutes = require('./account.routes');
+const chequeRoutes = require('./cheque.routes');
+
+router.get('/me', authenticate, authController.getUserProfile.bind(authController));
 
 router.use('/auth', authRoutes);
 router.use('/shop', shopRoutes);
@@ -22,5 +28,7 @@ router.use('/customer', customerAppRoutes);
 router.use('/admin', adminRoutes);
 router.use('/distributors', distributorRoutes);
 router.use('/sms', textlkRoutes);
+router.use('/accounts', accountRoutes);
+router.use('/cheques', chequeRoutes);
 
 module.exports = router;

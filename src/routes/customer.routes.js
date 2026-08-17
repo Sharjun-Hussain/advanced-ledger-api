@@ -13,5 +13,6 @@ router.patch('/:id', customerController.updateCustomer.bind(customerController))
 router.post('/:id/lock', customerController.lockCustomer.bind(customerController));
 router.post('/:id/payment', customerController.recordPayment.bind(customerController));
 router.get('/:id/history', customerController.getCustomerHistory.bind(customerController));
+router.get('/:id/ledger', customerController.getCustomerLedger.bind(customerController));
 
 module.exports = router;
