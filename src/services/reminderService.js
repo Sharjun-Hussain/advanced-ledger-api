@@ -13,7 +13,7 @@ class ReminderService {
     let delivered = false;
     let stub = false;
     try {
-      const result = await sendSms({ to: customer.phone, message: text });
+      const result = await sendSms(shopId, { to: customer.phone, message: text });
       delivered = result.delivered;
       stub = result.stub;
     } catch (err) {

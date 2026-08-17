@@ -9,7 +9,8 @@ const getConfig = async (req, res, next) => {
         const setting = await Setting.findOne({
             where: {
                 shop_id: req.user.shop_id,
-                category: 'textlk_crm'
+                category: 'textlk_crm',
+                branch_id: null
             }
         });
 
@@ -45,7 +46,8 @@ const saveConfig = async (req, res, next) => {
         let setting = await Setting.findOne({
             where: {
                 shop_id: req.user.shop_id,
-                category: 'textlk_crm'
+                category: 'textlk_crm',
+                branch_id: null
             }
         });
 
@@ -80,49 +82,7 @@ const saveConfig = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
-const getDriveAuthUrl = async (req, res, next) => {
-    try {
-        const url = googleDriveService.getAuthUrl();
-        return successResponse(res, { url }, 'Auth URL generated');
-    } catch (error) { next(error); }
-};
 
-const driveCallback = async (req, res, next) => {
-    try {
-        const { code } = req.body;
-        if (!code) return errorResponse(res, 'Code is required', 400);
-
-        const tokens = await googleDriveService.getTokens(code);
-        
-        if (tokens.refresh_token) {
-            let setting = await Setting.findOne({
-                where: {
-                    shop_id: req.user.shop_id,
-                    category: 'textlk_crm'
-                }
-            });
-
-            const currentData = setting ? (typeof setting.settings_data === 'string' ? JSON.parse(setting.settings_data) : setting.settings_data) : {};
-            const settingsData = { ...currentData, googleDriveRefreshToken: encrypt(tokens.refresh_token) };
-
-            if (setting) {
-                await setting.update({ settings_data: settingsData });
-            } else {
-                await Setting.create({
-                    shop_id: req.user.shop_id,
-                    category: 'textlk_crm',
-                    settings_data: settingsData
-                });
-            }
-            return successResponse(res, null, 'Google Drive connected successfully');
-        } else {
-            return errorResponse(res, 'Could not obtain refresh token. Please revoke access in your Google account and try again.', 400);
-        }
-    } catch (error) { 
-        logger.error(`Drive Callback Error: ${error.message}`);
-        return errorResponse(res, 'Failed to authenticate with Google Drive', 500); 
-    }
-};
 
 const testConnection = async (req, res, next) => {
     try {
@@ -380,6 +340,5 @@ module.exports = {
     deleteTemplate,
     getCampaigns,
     createCampaign,
-    getStats,
-    
+    getStats
 };

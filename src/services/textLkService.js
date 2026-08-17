@@ -11,7 +11,7 @@ class TextLkService {
      * Get full config including credentials
      */
     async _getFullConfig(shopId) {
-        const [setting, organization] = await Promise.all([
+        const [setting, shop] = await Promise.all([
             Setting.findOne({
                 where: {
                     shop_id: shopId,
@@ -36,7 +36,7 @@ class TextLkService {
 
         const config = { ...rawData };
         // Correctly pull enabled flag from Shop table
-        config.enabled = organization?.textlk_enabled === true;
+        config.enabled = shop?.textlk_enabled === true;
         if (config.apiKey) config.apiKey = decrypt(config.apiKey);
 
         return config;

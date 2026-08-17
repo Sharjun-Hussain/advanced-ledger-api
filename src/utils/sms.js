@@ -1,14 +1,17 @@
-async function sendSms({ to, message }) {
-  const apiKey = process.env.SMS_API_KEY;
-  if (!apiKey) {
-    console.warn(`[SMS::stub] to=${to} -> ${message}`);
-    return { delivered: false, stub: true };
+const textLkService = require('../services/textLkService');
+
+async function sendSms(shopId, { to, message }) {
+  try {
+    const result = await textLkService.sendSms(shopId, { recipient: to, message });
+    if (!result) {
+      console.warn(`[SMS::stub] to=${to} -> ${message} (Text.lk natively disabled/not configured for shopId ${shopId})`);
+      return { delivered: false, stub: true };
+    }
+    return { delivered: true, stub: false, ...result };
+  } catch (err) {
+    console.error(`[SMS] Failed to send SMS via Text.lk: ${err.message}`);
+    throw err;
   }
-  // Example Dialog SMPP/HTTP integration point:
-  // const url = `https://api.dialog.lk/sms/send?message=${encodeURIComponent(message)}&to=${encodeURIComponent(to)}&api_key=${apiKey}&sender_id=${process.env.SMS_SENDER_ID}`;
-  // const res = await fetch(url);
-  // return { delivered: res.ok, ...(await res.json()) };
-  throw new Error('SMS provider not configured');
 }
 
 module.exports = { sendSms };

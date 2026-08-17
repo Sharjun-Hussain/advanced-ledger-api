@@ -1,25 +1,28 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate, authorize } = require('../middleware/auth');
 const textLkController = require('../controllers/textLkController');
+const { authenticate, authorize } = require('../middleware/auth');
 
 router.use(authenticate);
-router.use(authorize('owner', 'staff'));
 
 router.get('/config', textLkController.getConfig);
-router.post('/config', textLkController.saveConfig);
-router.post('/test-connection', textLkController.testConnection);
-router.get('/contacts', textLkController.getContacts);
-router.post('/contacts/groups', textLkController.createContactGroup);
-router.patch('/contacts/groups/:uid', textLkController.updateContactGroup);
-router.delete('/contacts/groups/:uid', textLkController.deleteContactGroup);
-router.post('/sms/send', textLkController.sendSms);
-router.post('/sync-customers', textLkController.syncCustomers);
-router.get('/templates', textLkController.getTemplates);
-router.post('/templates', textLkController.createTemplate);
-router.delete('/templates/:id', textLkController.deleteTemplate);
-router.get('/campaigns', textLkController.getCampaigns);
-router.post('/campaigns', textLkController.createCampaign);
+router.post('/config', authorize('owner', 'admin'), textLkController.saveConfig);
+router.post('/test', authorize('owner', 'admin'), textLkController.testConnection);
 router.get('/stats', textLkController.getStats);
+router.get('/contacts', textLkController.getContacts);
+router.post('/contacts', authorize('owner', 'admin', 'staff'), textLkController.createContactGroup);
+router.patch('/contacts/:uid', authorize('owner', 'admin', 'staff'), textLkController.updateContactGroup);
+router.delete('/contacts/:uid', authorize('owner', 'admin', 'staff'), textLkController.deleteContactGroup);
+router.post('/sync', authorize('owner', 'admin', 'staff'), textLkController.syncCustomers);
+router.post('/send', textLkController.sendSms);
+
+// Templates
+router.get('/templates', textLkController.getTemplates);
+router.post('/templates', authorize('owner', 'admin', 'staff'), textLkController.createTemplate);
+router.delete('/templates/:id', authorize('owner', 'admin', 'staff'), textLkController.deleteTemplate);
+
+// Campaigns
+router.get('/campaigns', textLkController.getCampaigns);
+router.post('/campaigns', authorize('owner', 'admin', 'staff'), textLkController.createCampaign);
 
 module.exports = router;
