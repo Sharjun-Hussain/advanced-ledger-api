@@ -22,6 +22,26 @@ const createShopValidation = Joi.object({
   password: Joi.string().min(6).optional().allow('', null)
 });
 
+const createPlanValidation = Joi.object({
+  name: Joi.string().max(50).required(),
+  price_monthly: Joi.number().min(0).required(),
+  price_yearly: Joi.number().min(0).required(),
+  max_customers: Joi.number().integer().allow(null).optional(),
+  trial_days: Joi.number().integer().min(0).required(),
+  features: Joi.alternatives().try(Joi.object(), Joi.array()).optional(),
+  is_active: Joi.boolean().optional()
+});
+
+const updatePlanValidation = Joi.object({
+  name: Joi.string().max(50).optional(),
+  price_monthly: Joi.number().min(0).optional(),
+  price_yearly: Joi.number().min(0).optional(),
+  max_customers: Joi.number().integer().allow(null).optional(),
+  trial_days: Joi.number().integer().min(0).optional(),
+  features: Joi.alternatives().try(Joi.object(), Joi.array()).optional(),
+  is_active: Joi.boolean().optional()
+});
+
 class AdminController {
   async getStats(req, res, next) {
     try {
@@ -36,6 +56,24 @@ class AdminController {
     try {
       const { rows, count, page, limit } = await adminService.getShops(req.query);
       paginatedResponse(res, rows, { total: count, page, limit }, 'Shops fetched successfully');
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async getShopById(req, res, next) {
+    try {
+      const shop = await adminService.getShopById(Number(req.params.id));
+      successResponse(res, shop, 'Shop details fetched successfully');
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async toggleShopStatus(req, res, next) {
+    try {
+      const shop = await adminService.toggleShopStatus(Number(req.params.id));
+      successResponse(res, shop, `Shop ${shop.is_active ? 'activated' : 'suspended'} successfully`);
     } catch (err) {
       next(err);
     }
@@ -87,6 +125,39 @@ class AdminController {
     try {
       const plans = await adminService.getPlans();
       successResponse(res, plans, 'Plans fetched successfully');
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async createPlan(req, res, next) {
+    try {
+      const { error, value } = createPlanValidation.validate(req.body);
+      if (error) return errorResponse(res, error.details[0].message, 400);
+
+      const plan = await adminService.createPlan(value);
+      successResponse(res, plan, 'Plan created successfully');
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async updatePlan(req, res, next) {
+    try {
+      const { error, value } = updatePlanValidation.validate(req.body);
+      if (error) return errorResponse(res, error.details[0].message, 400);
+
+      const plan = await adminService.updatePlan(Number(req.params.id), value);
+      successResponse(res, plan, 'Plan updated successfully');
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async deletePlan(req, res, next) {
+    try {
+      const result = await adminService.deletePlan(Number(req.params.id));
+      successResponse(res, result, 'Plan deleted successfully');
     } catch (err) {
       next(err);
     }

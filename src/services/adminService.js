@@ -54,6 +54,38 @@ class AdminService {
     return { rows: shops, count: Number(total), page: parseInt(page) || 1, limit };
   }
 
+  async getShopById(shopId) {
+    const shop = await db.Shop.findByPk(shopId, {
+      include: [
+        { model: db.Plan, as: 'plan' },
+        { model: db.User, as: 'users', attributes: ['id', 'name', 'phone', 'role', 'is_active', 'created_at'] },
+      ]
+    });
+    
+    if (!shop) throw { statusCode: 404, message: 'Shop not found' };
+
+    const customerCount = await db.Customer.count({ where: { shop_id: shopId } });
+    const fullShop = shop.toJSON();
+    fullShop.customer_count = customerCount;
+
+    return fullShop;
+  }
+
+  async toggleShopStatus(shopId) {
+    const shop = await db.Shop.findByPk(shopId);
+    if (!shop) throw { statusCode: 404, message: 'Shop not found' };
+
+    shop.is_active = !shop.is_active;
+    if (!shop.is_active) {
+      shop.subscription_status = 'locked';
+    } else if (shop.subscription_status === 'locked') {
+      shop.subscription_status = 'active';
+    }
+
+    await shop.save();
+    return shop;
+  }
+
   async updateShop(shopId, data) {
     const updateData = {};
     if (data.isActive !== undefined) updateData.is_active = data.isActive ? 1 : 0;
@@ -83,9 +115,33 @@ class AdminService {
 
   async getPlans() {
     return await db.Plan.findAll({
-      attributes: ['id', 'name', 'price_monthly', 'price_yearly', 'max_customers', 'trial_days'],
+      attributes: ['id', 'name', 'price_monthly', 'price_yearly', 'max_customers', 'trial_days', 'features', 'is_active'],
       order: [['id', 'ASC']]
     });
+  }
+
+  async createPlan(data) {
+    return await db.Plan.create(data);
+  }
+
+  async updatePlan(planId, data) {
+    const plan = await db.Plan.findByPk(planId);
+    if (!plan) throw { statusCode: 404, message: 'Plan not found' };
+
+    await plan.update(data);
+    return plan;
+  }
+
+  async deletePlan(planId) {
+    const plan = await db.Plan.findByPk(planId);
+    if (!plan) throw { statusCode: 404, message: 'Plan not found' };
+
+    // Prevent deleting if shops are assigned
+    const shopCount = await db.Shop.count({ where: { plan_id: planId } });
+    if (shopCount > 0) throw { statusCode: 409, message: 'Cannot delete plan because shops are currently subscribed to it.' };
+
+    await plan.destroy();
+    return { message: 'Plan deleted successfully' };
   }
 
   async createShop(data) {
