@@ -24,7 +24,10 @@ class AdminService {
     };
   }
 
-  async getShops({ search = '', status }) {
+  async getShops({ search = '', status, page = 1, size = 10 }) {
+    const limit = Math.max(1, parseInt(size) || 10);
+    const offset = (Math.max(1, parseInt(page) || 1) - 1) * limit;
+
     let whereClause = `(s.name LIKE :search OR s.phone LIKE :search)`;
     const replacements = { search: `%${search}%` };
 
@@ -33,16 +36,22 @@ class AdminService {
       replacements.status = status;
     }
 
+    const [[{ total }]] = await db.sequelize.query(
+      `SELECT COUNT(*) AS total FROM shops s WHERE ${whereClause}`,
+      { replacements }
+    );
+
     const shops = await db.sequelize.query(
       `SELECT s.id, s.name, s.address, s.business_type, s.language_pref, s.phone,
               s.subscription_status, s.trial_ends_at, s.plan_ends_at, s.is_active, s.created_at,
               p.name AS plan_name,
               (SELECT COUNT(*) FROM customers c WHERE c.shop_id = s.id) AS customer_count
          FROM shops s LEFT JOIN plans p ON p.id = s.plan_id
-        WHERE ${whereClause} ORDER BY s.created_at DESC`,
-      { replacements, type: db.sequelize.QueryTypes.SELECT }
+        WHERE ${whereClause} ORDER BY s.created_at DESC LIMIT :limit OFFSET :offset`,
+      { replacements: { ...replacements, limit, offset }, type: db.sequelize.QueryTypes.SELECT }
     );
-    return shops;
+
+    return { rows: shops, count: Number(total), page: parseInt(page) || 1, limit };
   }
 
   async updateShop(shopId, data) {
@@ -60,6 +69,10 @@ class AdminService {
       const plan = await db.Plan.findOne({ where: { id: data.planId } });
       if (!plan) throw { statusCode: 404, message: 'Plan not found' };
       updateData.plan_id = data.planId;
+    }
+
+    if (data.logo !== undefined) {
+       updateData.logo = data.logo; 
     }
 
     if (Object.keys(updateData).length === 0) return { message: 'Nothing to update' };
@@ -90,8 +103,9 @@ class AdminService {
         language_pref: data.language_pref || 'sinhala',
         phone: data.phone,
         subscription_status: data.subscription_status || 'trial',
-        plan_id: data.plan_id || null,
-        is_active: data.is_active !== undefined ? data.is_active : true
+        plan_id: data.plan_id === 'null' ? null : (data.plan_id || null),
+        logo: data.logo || null,
+        is_active: data.is_active === 'false' ? false : (data.is_active !== undefined ? data.is_active : true)
       }, { transaction });
 
       if (data.owner_name && data.password) {

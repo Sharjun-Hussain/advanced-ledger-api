@@ -39,6 +39,10 @@ if (process.env.NODE_ENV !== 'test') {
 }
 app.use(rateLimiter);
 
+// Serve static uploaded files mapped identically to ERP standards
+const path = require('path');
+app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
+
 // Health check
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'ok', service: 'ledger-lk-api', environment: process.env.NODE_ENV });

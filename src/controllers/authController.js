@@ -1,17 +1,18 @@
 const authService = require('../services/authService');
 const authValidation = require('../validations/auth.validation');
+const { successResponse, errorResponse } = require('../utils/responseHandler');
 
 class AuthController {
   async login(req, res, next) {
     try {
       const { error, value } = authValidation.login.validate(req.body);
       if (error) {
-        return res.status(400).json({ status: 'error', message: error.details[0].message });
+        return errorResponse(res, error.details[0].message, 400);
       }
 
       const { phone, password } = value;
       const result = await authService.login(phone, password);
-      res.status(200).json(result);
+      successResponse(res, result, 'Login successful');
     } catch (err) {
       next(err);
     }
@@ -21,11 +22,11 @@ class AuthController {
     try {
       const { error, value } = authValidation.register.validate(req.body);
       if (error) {
-        return res.status(400).json({ status: 'error', message: error.details[0].message });
+        return errorResponse(res, error.details[0].message, 400);
       }
 
       const result = await authService.register(value);
-      res.status(201).json(result);
+      successResponse(res, result, 'Registration successful');
     } catch (err) {
       next(err);
     }
@@ -33,7 +34,7 @@ class AuthController {
 
   async getMe(req, res, next) {
     try {
-      res.status(200).json({ user: req.user });
+      successResponse(res, { user: req.user }, 'User profile fetched');
     } catch (err) {
       next(err);
     }
@@ -43,7 +44,7 @@ class AuthController {
     try {
       const { error, value } = authValidation.adminLogin.validate(req.body);
       if (error) {
-        return res.status(400).json({ status: 'error', message: error.details[0].message });
+        return errorResponse(res, error.details[0].message, 400);
       }
 
       const { email, password } = value;
@@ -60,16 +61,13 @@ class AuthController {
           roles: [{ name: result.user.role }] 
       };
 
-      res.status(200).json({
-        status: "success",
-        data: {
-          user: mappedUser,
-          auth_token: result.token
-        }
-      });
+      successResponse(res, {
+        user: mappedUser,
+        auth_token: result.token
+      }, 'Login successful');
     } catch (err) {
       if (err.statusCode === 401) {
-        return res.status(401).json({ status: 'error', message: err.message });
+        return errorResponse(res, err.message, 401);
       }
       next(err);
     }
@@ -88,13 +86,7 @@ class AuthController {
           roles: req.user.role ? [{ name: req.user.role }] : []
       };
 
-      res.status(200).json({
-        status: "success",
-        success: true,
-        data: {
-          user: mappedUser
-        }
-      });
+      successResponse(res, { user: mappedUser }, 'User profile fetched');
     } catch (err) {
       next(err);
     }

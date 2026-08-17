@@ -11,6 +11,7 @@ module.exports = (sequelize, DataTypes) => {
     plan_ends_at: { type: DataTypes.DATE, allowNull: true },
     is_active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
     textlk_enabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    logo: { type: DataTypes.STRING(255), allowNull: true },
   }, {
     tableName: 'shops',
     timestamps: true,
