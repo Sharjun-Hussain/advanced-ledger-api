@@ -59,6 +59,24 @@ class ReportService {
     );
     return rows;
   }
+
+  async getRecentTransactions(shopId, limitStr = '50') {
+    const limit = parseInt(limitStr, 10);
+    // Double entry accounting migration - join with customers and accounts
+    const rows = await db.sequelize.query(
+      `SELECT t.id, t.amount, t.type, t.transaction_date, t.description, t.reference_type,
+              c.name as customer_name, c.phone as customer_phone,
+              a.name as account_name
+         FROM transactions t
+         LEFT JOIN customers c ON t.customer_id = c.id
+         LEFT JOIN accounts a ON t.account_id = a.id
+        WHERE t.shop_id = :shopId
+        ORDER BY t.transaction_date DESC, t.id DESC
+        LIMIT :limit`,
+      { replacements: { shopId, limit }, type: db.sequelize.QueryTypes.SELECT }
+    );
+    return rows;
+  }
 }
 
 module.exports = new ReportService();

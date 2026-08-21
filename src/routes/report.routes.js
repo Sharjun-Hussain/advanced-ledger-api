@@ -7,6 +7,7 @@ router.use(authenticate);
 router.use(authorize('owner'));
 
 router.get('/summary', reportController.getSummary.bind(reportController));
+router.get('/recent', reportController.getRecentTransactions.bind(reportController));
 router.get('/export', reportController.exportCsv.bind(reportController));
 
 module.exports = router;

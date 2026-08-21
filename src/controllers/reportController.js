@@ -10,6 +10,15 @@ class ReportController {
     }
   }
 
+  async getRecentTransactions(req, res, next) {
+    try {
+      const data = await reportService.getRecentTransactions(req.user.shop_id, req.query.limit || 50);
+      res.status(200).json({ status: 'success', data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async exportCsv(req, res, next) {
     try {
       const rows = await reportService.getExportData(req.user.shop_id, req.query.from, req.query.to);
