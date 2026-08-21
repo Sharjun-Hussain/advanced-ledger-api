@@ -5,6 +5,29 @@ const { Transaction, Account } = db;
  * Accounting Service (LedgerLK Adjusted)
  */
 class AccountingService {
+    async ensureDefaultAccounts(shop_id, transaction = null) {
+        const defaultAccounts = [
+            { code: '1100', name: 'Accounts Receivable', type: 'asset' },
+            { code: '1000', name: 'Cash', type: 'asset' },
+            { code: '1010', name: 'Bank', type: 'asset' },
+            { code: '2100', name: 'Accounts Payable', type: 'liability' },
+            { code: '4000', name: 'Sales Revenue', type: 'revenue' },
+            { code: '5000', name: 'Cost of Goods Sold', type: 'expense' },
+        ];
+
+        const existing = await Account.findAll({ where: { shop_id }, transaction });
+        const existingCodes = existing.map(a => a.code);
+
+        const toCreate = defaultAccounts.filter(a => !existingCodes.includes(a.code)).map(a => ({
+            ...a,
+            shop_id
+        }));
+
+        if (toCreate.length > 0) {
+            await Account.bulkCreate(toCreate, { transaction });
+        }
+    }
+
     async recordTransaction(data, transaction = null) {
         const {
             shop_id,
@@ -89,11 +112,15 @@ class AccountingService {
     }
  
     async getCustomerBalance(shop_id, customer_id, transaction = null) {
-        const arAccount = await Account.findOne({
+        let arAccount = await Account.findOne({
             where: { shop_id, code: '1100' },
             transaction
         });
-        if (!arAccount) return 0;
+        if (!arAccount) {
+            await this.ensureDefaultAccounts(shop_id, transaction);
+            arAccount = await Account.findOne({ where: { shop_id, code: '1100' }, transaction });
+            if (!arAccount) return 0;
+        }
  
         const totals = await Transaction.findAll({
             attributes: [

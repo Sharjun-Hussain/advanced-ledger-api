@@ -124,9 +124,17 @@ class CustomerController {
 
       const customer = await customerService.getCustomer(req.user.shop_id, Number(id));
 
-      const arAccount = await Account.findOne({
-          where: { shop_id: req.user.shop_id, code: '1100' }
+      let arAccount = await Account.findOne({
+        where: { shop_id: req.user.shop_id, code: '1100' }
       });
+
+      if (!arAccount) {
+          // Auto-heal missing accounts for older shops created before accounting modules
+          await accountingService.ensureDefaultAccounts(req.user.shop_id);
+          arAccount = await Account.findOne({
+              where: { shop_id: req.user.shop_id, code: '1100' }
+          });
+      }
 
       if (!arAccount) {
           return res.status(500).json({ status: 'error', message: 'Accounts Receivable account not found.' });
