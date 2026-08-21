@@ -108,7 +108,7 @@ class CustomerService {
       await customer.update({ balance: newBalance, is_locked: false }, { transaction });
 
       const loans = await db.sequelize.query(
-        `SELECT id, amount, (SELECT COALESCE(SUM(t.amount),0) FROM transactions t WHERE t.loan_id = l.id AND t.type = 'payment') AS paid
+        `SELECT id, amount, (SELECT COALESCE(SUM(t.amount),0) FROM legacy_transactions t WHERE t.loan_id = l.id AND t.type = 'payment') AS paid
          FROM loans l WHERE l.customer_id = :customerId AND l.shop_id = :shopId AND l.status = 'active'
          ORDER BY l.created_at ASC`,
         { replacements: { customerId, shopId }, type: db.sequelize.QueryTypes.SELECT, transaction }
@@ -122,7 +122,15 @@ class CustomerService {
         
         const apply = Math.min(owed, remaining);
         remaining -= apply;
-        
+
+        await db.sequelize.query(
+          `INSERT INTO legacy_transactions (shop_id, customer_id, loan_id, type, amount, balance_after, created_by, created_at)
+           VALUES (:shopId, :customerId, :loanId, 'payment', :amount, :balanceAfter, :userId, :createdAt)`,
+          {
+            replacements: { shopId, customerId, loanId: loan.id, amount: apply, balanceAfter: Math.max(0, Number(customer.balance) - (amount - remaining)), userId: userId || null, createdAt: new Date() }, transaction
+          }
+        );
+
         const totalPaid = Number(loan.paid) + apply;
         if (totalPaid >= Number(loan.amount)) {
           await db.Loan.update({ status: 'paid' }, { where: { id: loan.id }, transaction });
@@ -180,8 +188,8 @@ class CustomerService {
       { replacements: { shopId, customerId }, type: db.sequelize.QueryTypes.SELECT }
     );
     const transactions = await db.sequelize.query(
-      // Retrieve AR account credits as payments if applicable, or just show the customer's ledger
-      `SELECT id, type, amount, created_at, reference_type FROM transactions WHERE shop_id = :shopId AND customer_id = :customerId AND amount > 0 ORDER BY transaction_date DESC`,
+      // Ensure the mobile UI receives legacy syntax ('loan', 'payment')
+      `SELECT id, type, amount, created_at, 'Legacy' AS reference_type FROM legacy_transactions WHERE shop_id = :shopId AND customer_id = :customerId ORDER BY created_at DESC`,
       { replacements: { shopId, customerId }, type: db.sequelize.QueryTypes.SELECT }
     );
     return { loans, transactions };
