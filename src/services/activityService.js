@@ -73,7 +73,7 @@ class ActivityService {
          FROM transactions t
          LEFT JOIN customers c ON t.customer_id = c.id
          LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE t.shop_id = :shopId
+        WHERE t.shop_id = :shopId AND a.code IN ('1000', '1010')
         ORDER BY t.transaction_date DESC, t.id DESC
         LIMIT :limit`,
       { replacements: { shopId, limit }, type: db.sequelize.QueryTypes.SELECT }
@@ -91,7 +91,7 @@ class ActivityService {
       })),
       ...transactions.map(t => ({
         source: 'financial',
-        type: t.type === 'debit' ? 'FINANCIAL_OUT' : 'FINANCIAL_IN',
+        type: t.type === 'debit' ? 'FINANCIAL_IN' : 'FINANCIAL_OUT',
         created_at: t.created_at,
         actor: t.customer_name || t.account_name || 'General',
         ip_address: null,
