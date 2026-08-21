@@ -52,10 +52,8 @@ class ShopService {
       { replacements: { shopId }, type: db.sequelize.QueryTypes.SELECT }
     );
 
-    const recent = await db.sequelize.query(
-      `SELECT t.id, t.amount, t.type, t.created_at, c.name AS customer_name FROM transactions t JOIN customers c ON c.id = t.customer_id WHERE t.shop_id = :shopId ORDER BY t.created_at DESC LIMIT 10`,
-      { replacements: { shopId }, type: db.sequelize.QueryTypes.SELECT }
-    );
+    const activityService = require('./activityService');
+    const recent = await activityService.getFeed(shopId, 10);
 
     return {
       outstanding: outstanding || 0,

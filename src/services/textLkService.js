@@ -1,6 +1,7 @@
 const { Setting, Shop } = require('../models');
 const logger = require('../utils/logger');
 const { decrypt } = require('../utils/security');
+const activityService = require('./activityService');
 
 class TextLkService {
     constructor() {
@@ -125,6 +126,12 @@ class TextLkService {
             if (!response.ok || data.status === 'error') {
                 throw new Error(data.message || 'Failed to send SMS');
             }
+            
+            await activityService.logSystemAction(shopId, null, 'SMS_SENT', 'SMS', null, {
+                 recipient: formattedRecipient, 
+                 sender: requestBody.sender_id,
+                 content: payload.message 
+            });
 
             return data;
         } catch (error) {

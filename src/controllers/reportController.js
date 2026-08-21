@@ -12,7 +12,8 @@ class ReportController {
 
   async getRecentTransactions(req, res, next) {
     try {
-      const data = await reportService.getRecentTransactions(req.user.shop_id, req.query.limit || 50);
+      const activityService = require('../services/activityService');
+      const data = await activityService.getFeed(req.user.shop_id, req.query.limit || 50);
       res.status(200).json({ status: 'success', data });
     } catch (err) {
       next(err);

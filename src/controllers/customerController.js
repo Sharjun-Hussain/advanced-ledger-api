@@ -1,5 +1,6 @@
 const customerService = require('../services/customerService');
 const customerValidation = require('../validations/customer.validation');
+const activityService = require('../services/activityService');
 
 class CustomerController {
   async getCustomers(req, res, next) {
@@ -18,6 +19,12 @@ class CustomerController {
 
       value.kind = 'customer';
       const customer = await customerService.addCustomer(req.user.shop_id, value);
+      
+      await activityService.logAction(req, 'CUSTOMER_CREATED', 'Customer', customer.id, { 
+        name: customer.name, 
+        customer_code: customer.customer_code 
+      });
+
       res.status(201).json({ customer });
     } catch (err) {
       next(err);

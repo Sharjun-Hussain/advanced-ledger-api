@@ -1,6 +1,7 @@
 const authService = require('../services/authService');
 const authValidation = require('../validations/auth.validation');
 const { successResponse, errorResponse } = require('../utils/responseHandler');
+const activityService = require('../services/activityService');
 
 class AuthController {
   async login(req, res, next) {
@@ -12,6 +13,18 @@ class AuthController {
 
       const { phone, password } = value;
       const result = await authService.login(phone, password);
+      
+      // Log Activity explicitly since req.user isn't populated on unprotected routes
+      await activityService.logSystemAction(
+        result.user.shop_id, 
+        result.user.id, 
+        'LOGIN', 
+        'User', 
+        result.user.id, 
+        { device: req.headers['user-agent'] }, 
+        req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress
+      );
+
       successResponse(res, result, 'Login successful');
     } catch (err) {
       next(err);

@@ -13,6 +13,8 @@ router.use(authenticate);
 router.use(authorize('admin'));
 
 router.get('/stats', adminController.getStats.bind(adminController));
+router.get('/activity-logs', adminController.getActivityLogs.bind(adminController));
+router.get('/activity-logs/:id', adminController.getActivityLogById.bind(adminController));
 router.get('/shops', adminController.getShops.bind(adminController));
 router.get('/shops/:id', adminController.getShopById.bind(adminController));
 router.post('/shops', upload.single('logo'), adminController.createShop.bind(adminController));

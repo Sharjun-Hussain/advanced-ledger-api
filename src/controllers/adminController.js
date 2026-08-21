@@ -162,6 +162,53 @@ class AdminController {
       next(err);
     }
   }
+
+  async getActivityLogs(req, res, next) {
+    try {
+      const activityService = require('../services/activityService');
+      const data = await activityService.getAdminFeed(req.query);
+      successResponse(res, data, 'Activity logs fetched successfully');
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async getActivityLogById(req, res, next) {
+    try {
+      const { id } = req.params;
+      const db = require('../models');
+      
+      const query = `
+        SELECT a.id, a.action_type as action, a.entity_type as module, a.created_at, a.ip_address, a.metadata as payload, 
+               u.name as user_name, u.email as user_email
+           FROM activity_logs a
+           LEFT JOIN users u ON a.user_id = u.id
+          WHERE a.id = :id
+      `;
+      const [log] = await db.sequelize.query(query, {
+        replacements: { id }, type: db.sequelize.QueryTypes.SELECT
+      });
+
+      if (!log) return errorResponse(res, 'Log not found', 404);
+
+      const data = {
+          id: log.id,
+          action: log.action,
+          module: log.module,
+          created_at: log.created_at,
+          description: typeof log.payload === 'string' 
+               ? (JSON.parse(log.payload)?.description || 'System log') 
+               : (log.payload?.description || 'System Action Captured'),
+          ip_address: log.ip_address,
+          payload: typeof log.payload === 'string' ? JSON.parse(log.payload) : log.payload,
+          user: { name: log.user_name || 'System', email: log.user_email }
+      };
+
+      successResponse(res, data, 'Activity log fetched successfully');
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = new AdminController();

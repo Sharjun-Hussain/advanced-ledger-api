@@ -1,5 +1,6 @@
 const loanService = require('../services/loanService');
 const loanValidation = require('../validations/loan.validation');
+const activityService = require('../services/activityService');
 
 class LoanController {
   async getLoans(req, res, next) {
@@ -17,6 +18,12 @@ class LoanController {
       if (error) return res.status(400).json({ status: 'error', message: error.details[0].message });
 
       const result = await loanService.addLoan(req.user.shop_id, req.user.id, value);
+      
+      await activityService.logAction(req, 'LOAN_ISSUED', 'Loan', result.id, { 
+        amount: value.amount, 
+        customer_id: value.customer_id 
+      });
+
       res.status(201).json({ loan: { id: result.id }, balance: result.balance });
 
       // Trigger SMS Alert in background
@@ -69,6 +76,12 @@ class LoanController {
       if (error) return res.status(400).json({ status: 'error', message: error.details[0].message });
 
       const result = await loanService.recordLoanPayment(req.user.shop_id, Number(req.params.id), req.user.id, value.amount);
+      
+      await activityService.logAction(req, 'LOAN_PAYMENT_RECORDED', 'Loan', Number(req.params.id), { 
+        amount: value.amount, 
+        new_balance: result.balance 
+      });
+
       res.status(200).json({ message: 'Payment recorded', balance: result.balance, paid: result.paid });
 
       // Trigger SMS Alert in background
