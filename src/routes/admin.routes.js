@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, authorize } = require('../middleware/auth');
 const adminController = require('../controllers/adminController');
+const adminSettingsController = require('../controllers/adminSettingsController');
 const authController = require('../controllers/authController');
 
 const upload = require('../middleware/upload');
@@ -13,6 +14,8 @@ router.use(authenticate);
 router.use(authorize('admin'));
 
 router.get('/stats', adminController.getStats.bind(adminController));
+router.get('/settings', adminSettingsController.getSettings.bind(adminSettingsController));
+router.post('/settings', upload.fields([{ name: 'logo', maxCount: 1 }, { name: 'favicon', maxCount: 1 }]), adminSettingsController.saveSettings.bind(adminSettingsController));
 router.get('/activity-logs', adminController.getActivityLogs.bind(adminController));
 router.get('/activity-logs/:id', adminController.getActivityLogById.bind(adminController));
 router.get('/shops', adminController.getShops.bind(adminController));

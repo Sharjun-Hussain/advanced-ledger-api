@@ -12,6 +12,25 @@ class TextLkService {
      * Get full config including credentials
      */
     async _getFullConfig(shopId) {
+        if (!shopId) {
+            // Global Super Admin settings
+            const setting = await Setting.findOne({
+                where: { shop_id: null, category: 'global' }
+            });
+            if (!setting || !setting.settings_data) return null;
+            
+            const config = { ...setting.settings_data };
+            // For global settings, we assume textlk is enabled if API key exists or we can expect a boolean
+            // Wait, we need to decrypt if we encrypted it, but for simplicity we rely on the raw value for now
+            config.enabled = config.textlk_enabled === true || config.textlk_enabled === 'true';
+            config.apiKey = config.textlk_api_key || config.apiKey;
+            config.senderId = config.textlk_sender_id || config.senderId;
+            if (config.apiKey && typeof config.apiKey === 'string' && config.apiKey.startsWith('enc:')) {
+                config.apiKey = decrypt(config.apiKey);
+            }
+            return config;
+        }
+
         const [setting, shop] = await Promise.all([
             Setting.findOne({
                 where: {
@@ -38,7 +57,11 @@ class TextLkService {
         const config = { ...rawData };
         // Correctly pull enabled flag from Shop table
         config.enabled = shop?.textlk_enabled === true;
-        if (config.apiKey) config.apiKey = decrypt(config.apiKey);
+        if (config.apiKey && typeof config.apiKey === 'string' && config.apiKey.startsWith('enc:')) {
+           config.apiKey = decrypt(config.apiKey);
+        } else if (config.apiKey) {
+           config.apiKey = decrypt(config.apiKey); // assuming legacy logic always encrypted
+        }
 
         return config;
     }

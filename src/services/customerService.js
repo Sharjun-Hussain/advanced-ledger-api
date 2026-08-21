@@ -53,6 +53,7 @@ class CustomerService {
         kind: data.kind || 'customer',
         customer_code: customerCode,
         name: data.name,
+        nic: data.nic,
         phone: data.phone,
         qr_code: qrCode,
         type: data.type,
@@ -78,6 +79,7 @@ class CustomerService {
     const updateData = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.phone !== undefined) updateData.phone = data.phone;
+    if (data.nic !== undefined) updateData.nic = data.nic;
     if (data.type !== undefined) updateData.type = data.type;
     if (data.customCycleDays !== undefined) updateData.custom_cycle_days = data.customCycleDays;
     if (data.loanLimit !== undefined) updateData.loan_limit = data.loanLimit;

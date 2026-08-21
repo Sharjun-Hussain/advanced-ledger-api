@@ -7,6 +7,7 @@ const addCustomer = Joi.object({
   kind: Joi.string().valid('customer', 'distributor').optional(),
   customCycleDays: Joi.number().integer().min(1).max(365).optional().allow(null),
   loanLimit: Joi.number().min(0).optional(),
+  nic: Joi.string().max(20).optional().allow(null, ''),
 });
 
 const updateCustomer = Joi.object({
@@ -15,6 +16,7 @@ const updateCustomer = Joi.object({
   type: Joi.string().valid('daily', 'weekly', 'monthly', 'custom').optional(),
   customCycleDays: Joi.number().integer().min(1).max(365).optional().allow(null),
   loanLimit: Joi.number().min(0).optional(),
+  nic: Joi.string().max(20).optional().allow(null, ''),
 });
 
 const lockCustomer = Joi.object({

@@ -1,6 +1,6 @@
 module.exports = (sequelize, DataTypes) => {
   const Setting = sequelize.define('Setting', {
-    shop_id: { type: DataTypes.INTEGER, allowNull: false },
+    shop_id: { type: DataTypes.INTEGER, allowNull: true },
     category: { type: DataTypes.STRING(100), allowNull: false },
     settings_data: { type: DataTypes.JSON, allowNull: false },
   }, {
