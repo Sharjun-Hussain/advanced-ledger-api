@@ -61,7 +61,12 @@ class ActivityService {
          FROM transactions t
          LEFT JOIN customers c ON t.customer_id = c.id
          LEFT JOIN accounts a ON t.account_id = a.id
-        WHERE t.shop_id = :shopId AND a.code IN ('1000', '1010')
+        WHERE t.shop_id = :shopId 
+          AND (
+            a.code IN ('1000', '1010') 
+            OR 
+            (a.code = '1100' AND t.type = 'debit' AND t.reference_type = 'Loan')
+          )
         ORDER BY t.transaction_date DESC, t.id DESC
         LIMIT :limit`,
       { replacements: { shopId, limit }, type: db.sequelize.QueryTypes.SELECT }
@@ -70,7 +75,9 @@ class ActivityService {
     const unified = [
       ...transactions.map(t => ({
         source: 'financial',
-        type: t.type === 'debit' ? 'FINANCIAL_IN' : 'FINANCIAL_OUT',
+        type: (t.description || '').toLowerCase().includes('credit sale') || (t.reference_type === 'Loan' && t.type === 'debit') 
+              ? 'FINANCIAL_OUT' 
+              : (t.type === 'debit' ? 'FINANCIAL_IN' : 'FINANCIAL_OUT'),
         created_at: t.created_at,
         actor: t.customer_name || t.account_name || 'General',
         ip_address: null,
