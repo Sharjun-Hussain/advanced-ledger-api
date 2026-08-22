@@ -13,21 +13,26 @@ class TextLkService {
      */
     async _getFullConfig(shopId) {
         if (!shopId) {
-            // Global Super Admin settings
+            console.log('[TextLk] _getFullConfig: Fetching GLOBAL config (shop_id: null, category: global)');
             const setting = await Setting.findOne({
                 where: { shop_id: null, category: 'global' }
             });
-            if (!setting || !setting.settings_data) return null;
+            if (!setting || !setting.settings_data) {
+                console.log('[TextLk] _getFullConfig: GLOBAL setting NOT found or settings_data empty');
+                return null;
+            }
             
             const config = { ...setting.settings_data };
-            // For global settings, we assume textlk is enabled if API key exists or we can expect a boolean
-            // Wait, we need to decrypt if we encrypted it, but for simplicity we rely on the raw value for now
+            console.log('[TextLk] _getFullConfig: Raw global config data:', JSON.stringify(config));
+            
             config.enabled = config.textlk_enabled === true || config.textlk_enabled === 'true';
             config.apiKey = config.textlk_api_key || config.apiKey;
             config.senderId = config.textlk_sender_id || config.senderId;
+            
             if (config.apiKey && typeof config.apiKey === 'string' && config.apiKey.startsWith('enc:')) {
                 config.apiKey = decrypt(config.apiKey);
             }
+            console.log('[TextLk] _getFullConfig: Final global config -> enabled:', config.enabled, 'apiKey exists:', !!config.apiKey);
             return config;
         }
 
@@ -101,21 +106,24 @@ class TextLkService {
      * Send SMS
      */
     async sendSms(shopId, payload) {
+        console.log(`\n--- [TextLk] sendSms INITIATED ---`);
+        console.log(`[TextLk] Parameters: shopId=${shopId}, payload=${JSON.stringify(payload)}`);
         try {
             const config = await this._getFullConfig(shopId);
             if (!config) {
+                console.error('[TextLk] sendSms ERROR: No config found for org ' + shopId);
                 logger.error('[TextLk] sendSms: No config found for org ' + shopId);
                 return null;
             }
             if (!config.enabled) {
+                console.error('[TextLk] sendSms ERROR: Text.lk is DISABLED in settings for org ' + shopId);
                 logger.error('[TextLk] sendSms: Text.lk is DISABLED in settings for org ' + shopId);
                 return null;
             }
 
-            // Auto-format phone number for Sri Lanka (e.g., 0771234567 -> 94771234567)
             let formattedRecipient = payload.recipient;
             if (formattedRecipient) {
-                formattedRecipient = formattedRecipient.replace(/\D/g, ''); // Remove non-digits like spaces or dashes
+                formattedRecipient = formattedRecipient.replace(/\D/g, ''); 
                 if (formattedRecipient.startsWith('0') && formattedRecipient.length === 10) {
                     formattedRecipient = '94' + formattedRecipient.substring(1);
                 }
@@ -128,8 +136,11 @@ class TextLkService {
                 message: payload.message,
             };
 
+            console.log(`[TextLk] Payload constructed:`, JSON.stringify(requestBody));
+            console.log(`[TextLk] Sending via API URL: ${this.baseUrl}/sms/send`);
+            console.log(`[TextLk] Using Bearer Token length: ${config.apiKey ? config.apiKey.length : 0}`);
+
             logger.info(`[TextLk] sendSms: Sending to ${formattedRecipient} via sender "${requestBody.sender_id}"`);
-            logger.info(`[TextLk] sendSms: API Key starts with: ${config.apiKey ? config.apiKey.substring(0, 8) + '...' : 'MISSING'}`);
 
             const response = await fetch(`${this.baseUrl}/sms/send`, {
                 method: 'POST',
@@ -142,10 +153,12 @@ class TextLkService {
                 signal: AbortSignal.timeout(15000)
             });
 
+            console.log(`[TextLk] HTTP Response Status: ${response.status} ${response.statusText}`);
             const data = await response.json();
-            logger.info(`[TextLk] sendSms: HTTP ${response.status}, Response: ${JSON.stringify(data)}`);
+            console.log(`[TextLk] HTTP Response Body:`, JSON.stringify(data));
 
             if (!response.ok || data.status === 'error') {
+                console.error(`[TextLk] Failed to send SMS:`, JSON.stringify(data));
                 throw new Error(data.message || 'Failed to send SMS');
             }
             
@@ -155,8 +168,10 @@ class TextLkService {
                  content: payload.message 
             });
 
+            console.log(`--- [TextLk] sendSms COMPLETED ---\n`);
             return data;
         } catch (error) {
+            console.error(`[TextLk] sendSms CATCH BLOCK TRIGGERED:`, error.message, error.stack);
             logger.error(`[TextLk] sendSms ERROR: ${error.message}`);
             throw error;
         }
