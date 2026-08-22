@@ -25,6 +25,7 @@ const lockCustomer = Joi.object({
 
 const makePayment = Joi.object({
   amount: Joi.number().min(0.01).required(),
+  payment_method: Joi.string().optional().allow('', null),
 });
 
 module.exports = {
