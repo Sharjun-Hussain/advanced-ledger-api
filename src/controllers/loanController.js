@@ -23,13 +23,13 @@ class LoanController {
       
       await activityService.logAction(req, 'LOAN_ISSUED', 'Loan', result.id, { 
         amount: value.amount, 
-        customer_id: value.customer_id 
+        customer_id: value.customerId 
       });
 
       res.status(201).json({ loan: { id: result.id }, balance: result.balance });
 
       // Trigger SMS Alert in background
-      this._triggerSmsAlert(req.user.shop_id, value.customer_id, value.amount, result.balance, 'loan');
+      this._triggerSmsAlert(req.user.shop_id, value.customerId, value.amount, result.balance, 'loan');
     } catch (err) {
       next(err);
     }
