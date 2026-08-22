@@ -126,6 +126,16 @@ class AuthService {
       throw error;
     }
   }
-}
+  async changePassword(userId, oldPassword, newPassword) {
+    const user = await db.User.findByPk(userId);
+    if (!user) throw { statusCode: 404, message: 'User not found' };
 
+    const isValid = await bcrypt.compare(oldPassword, user.password_hash);
+    if (!isValid) throw { statusCode: 401, message: 'Incorrect old password' };
+
+    const hash = await bcrypt.hash(newPassword, 10);
+    await user.update({ password_hash: hash });
+    return { success: true };
+  }
+}
 module.exports = new AuthService();

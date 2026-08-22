@@ -25,6 +25,7 @@ class ShopService {
     if (data.businessType !== undefined) updateData.business_type = data.businessType;
     if (data.languagePref !== undefined) updateData.language_pref = data.languagePref;
     if (data.textlkEnabled !== undefined) updateData.textlk_enabled = data.textlkEnabled;
+    if (data.logo !== undefined) updateData.logo = data.logo;
 
     if (Object.keys(updateData).length > 0) {
       await db.Shop.update(updateData, { where: { id: shopId } });

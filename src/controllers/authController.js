@@ -132,7 +132,19 @@ class AuthController {
       next(err);
     }
   }
-}
+  async changePassword(req, res, next) {
+    try {
+      const { oldPassword, newPassword } = req.body;
+      if (!oldPassword || !newPassword) {
+        return res.status(400).json({ status: 'error', message: 'oldPassword and newPassword are required' });
+      }
 
+      await authService.changePassword(req.user.id, oldPassword, newPassword);
+      res.status(200).json({ status: 'success', message: 'Password updated successfully' });
+    } catch (err) {
+      next(err);
+    }
+  }
+}
 
 module.exports = new AuthController();
