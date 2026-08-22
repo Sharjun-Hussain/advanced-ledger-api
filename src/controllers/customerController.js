@@ -90,7 +90,7 @@ class CustomerController {
 
   async _triggerSmsAlert(shop_id, customer_id, amount, balance) {
     try {
-      const { Setting, Customer } = require('../models');
+      const { Setting, Customer, Shop } = require('../models');
       const textLkService = require('../services/textLkService');
       
       const setting = await Setting.findOne({
@@ -102,15 +102,17 @@ class CustomerController {
         
         if (config.enableOrderSms) {
           const customer = await Customer.findByPk(customer_id);
+          const shop = await Shop.findByPk(shop_id);
           const phone = customer?.phone?.replace(/\D/g, '');
           if (!phone) return;
 
-          const template = config.distributorSmsTemplate || 'Hi {customer_name}, payment of Rs.{amount} received. Balance: Rs.{balance}';
+          const template = config.distributorSmsTemplate || 'Hi {customer_name}, payment of Rs.{amount} received. Balance: Rs.{balance}. Thanks, {shop_name}';
           
           const message = template
               .replace(/{customer_name}/g, customer.first_name || customer.name || '')
               .replace(/{amount}/g, parseFloat(amount).toFixed(2))
-              .replace(/{balance}/g, parseFloat(balance).toFixed(2));
+              .replace(/{balance}/g, parseFloat(balance).toFixed(2))
+              .replace(/{shop_name}/g, shop ? shop.name : '');
               
           await textLkService.sendSms(shop_id, {
             recipient: phone,

@@ -53,12 +53,24 @@ const saveConfig = async (req, res, next) => {
 
         const currentData = setting ? (typeof setting.settings_data === 'string' ? JSON.parse(setting.settings_data) : setting.settings_data) : {};
         
+        if (orderSmsTemplate) {
+            if (orderSmsTemplate.length > 160) return res.status(400).json({ status: 'error', message: 'Order SMS must be under 160 characters' });
+            if (!orderSmsTemplate.includes('{shop_name}')) return res.status(400).json({ status: 'error', message: 'Order SMS must contain {shop_name}' });
+            if (!orderSmsTemplate.includes('{customer_name}')) return res.status(400).json({ status: 'error', message: 'Order SMS must contain {customer_name}' });
+        }
+
+        if (distributorSmsTemplate) {
+            if (distributorSmsTemplate.length > 160) return res.status(400).json({ status: 'error', message: 'Distributor SMS must be under 160 characters' });
+            if (!distributorSmsTemplate.includes('{shop_name}')) return res.status(400).json({ status: 'error', message: 'Distributor SMS must contain {shop_name}' });
+            if (!distributorSmsTemplate.includes('{customer_name}')) return res.status(400).json({ status: 'error', message: 'Distributor SMS must contain {customer_name}' });
+        }
+
         const settingsData = { 
             ...currentData, 
             senderId,
             enableOrderSms: !!enableOrderSms,
-            orderSmsTemplate: orderSmsTemplate || 'Hi {customer_name}, your order {invoice_number} is successful. Total: {total_amount}',
-            distributorSmsTemplate: distributorSmsTemplate || 'Hi {customer_name}, your wholesale order {invoice_number} is successful. Total: {total_amount}',
+            orderSmsTemplate: orderSmsTemplate || 'Hi {customer_name}, a loan of Rs.{amount} was added. Balance: Rs.{balance}. Thanks, {shop_name}',
+            distributorSmsTemplate: distributorSmsTemplate || 'Hi {customer_name}, payment of Rs.{amount} received. Balance: Rs.{balance}. Thanks, {shop_name}',
             enableInvoiceAttachment: !!enableInvoiceAttachment
         };
 
