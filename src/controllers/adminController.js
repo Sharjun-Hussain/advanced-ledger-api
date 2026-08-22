@@ -180,7 +180,7 @@ class AdminController {
       
       const query = `
         SELECT a.id, a.action_type as action, a.entity_type as module, a.created_at, a.ip_address, a.metadata as payload, 
-               u.name as user_name, u.email as user_email
+               u.name as user_name, u.phone as user_phone
            FROM activity_logs a
            LEFT JOIN users u ON a.user_id = u.id
           WHERE a.id = :id
@@ -201,7 +201,7 @@ class AdminController {
                : (log.payload?.description || 'System Action Captured'),
           ip_address: log.ip_address,
           payload: typeof log.payload === 'string' ? JSON.parse(log.payload) : log.payload,
-          user: { name: log.user_name || 'System', email: log.user_email }
+          user: { name: log.user_name || 'System', phone: log.user_phone }
       };
 
       successResponse(res, data, 'Activity log fetched successfully');

@@ -118,7 +118,7 @@ class ActivityService {
 
     const query = `
       SELECT a.id, a.action_type as action, a.entity_type as module, a.created_at, a.ip_address, a.metadata as payload, 
-             u.name as user_name, u.email as user_email
+             u.name as user_name, u.phone as user_phone
          FROM activity_logs a
          LEFT JOIN users u ON a.user_id = u.id
         ORDER BY a.created_at ${sortOrder === 'ASC' ? 'ASC' : 'DESC'}
@@ -141,7 +141,7 @@ class ActivityService {
              : (a.payload?.description || 'System Action Captured'),
         ip_address: a.ip_address,
         payload: typeof a.payload === 'string' ? JSON.parse(a.payload) : a.payload,
-        user: { name: a.user_name || 'System', email: a.user_email }
+        user: { name: a.user_name || 'System', phone: a.user_phone }
       })),
       total: parseInt(total, 10),
       last_page: Math.ceil(parseInt(total, 10) / limit),
