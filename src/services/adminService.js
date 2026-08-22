@@ -150,6 +150,18 @@ class AdminService {
       throw { statusCode: 409, message: 'Phone already registered to a shop' };
     }
 
+    const existingUser = await db.User.findOne({ where: { phone: data.phone } });
+    if (existingUser) {
+      throw { statusCode: 409, message: 'Phone already registered to a user account' };
+    }
+
+    if (data.owner_nic) {
+      const existingNic = await db.User.findOne({ where: { nic: data.owner_nic } });
+      if (existingNic) {
+        throw { statusCode: 409, message: 'NIC already registered to a user account' };
+      }
+    }
+
     const transaction = await db.sequelize.transaction();
     try {
       const shop = await db.Shop.create({
@@ -180,6 +192,9 @@ class AdminService {
       return shop;
     } catch (error) {
       await transaction.rollback();
+      if (error.name === 'SequelizeUniqueConstraintError' || error.name === 'SequelizeValidationError') {
+        throw { statusCode: 400, message: error.errors ? error.errors.map(e => e.message).join(', ') : 'Validation error occurred' };
+      }
       throw error;
     }
   }
