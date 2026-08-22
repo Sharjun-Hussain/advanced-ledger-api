@@ -35,8 +35,7 @@ class TextLkService {
             Setting.findOne({
                 where: {
                     shop_id: shopId,
-                    category: 'textlk_crm',
-                    branch_id: null
+                    category: 'textlk_crm'
                 }
             }),
             Shop.findByPk(shopId, { attributes: ['textlk_enabled'] })
