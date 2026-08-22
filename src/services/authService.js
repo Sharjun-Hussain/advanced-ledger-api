@@ -84,9 +84,8 @@ class AuthService {
 
     const message = `Your LedgerLK password reset code is ${otpCode}. It will expire in 15 minutes.`;
     
-    // We pass null for shopId to use global/available config or user's shop_id if required.
-    // However, user has a shop_id.
-    await textLkService.sendSms(user.shop_id, {
+    // We pass null for shopId to use global platform config for password resets.
+    await textLkService.sendSms(null, {
       recipient: phone,
       message,
       sender_id: 'LedgerLK' // fallback sender
