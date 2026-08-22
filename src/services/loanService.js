@@ -120,7 +120,7 @@ class LoanService {
       }
 
       await transaction.commit();
-      return { balance: newBalance, paid: Number(total) };
+      return { balance: newBalance, paid: Number(total), customer_id: loan.customer_id };
     } catch (error) {
       await transaction.rollback();
       throw error;
