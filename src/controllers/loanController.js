@@ -52,8 +52,8 @@ class LoanController {
           if (!phone) return;
 
           const template = type === 'loan' 
-              ? (config.orderSmsTemplate || 'Hi {customer_name}, a loan of Rs.{amount} was added. Balance: Rs.{balance}. Thanks, {shop_name}')
-              : (config.distributorSmsTemplate || 'Hi {customer_name}, payment of Rs.{amount} received. Balance: Rs.{balance}. Thanks, {shop_name}');
+              ? (config.orderSmsTemplate || '{shop_name}: Dear {customer_name}, a loan of Rs.{amount} was added. Balance: Rs.{balance}.')
+              : (config.distributorSmsTemplate || '{shop_name}: Dear {customer_name}, payment of Rs.{amount} received. Balance: Rs.{balance}.');
           
           const message = template
               .replace(/{customer_name}/g, customer.first_name || customer.name || '')

@@ -44,7 +44,9 @@ class ShopService {
     const outstanding = await db.Customer.sum('balance', { where: { shop_id: shopId, is_active: 1 } });
     
     const [collectionsRes] = await db.sequelize.query(
-      `SELECT COALESCE(SUM(amount),0) AS today FROM transactions WHERE shop_id = :shopId AND type = 'payment' AND DATE(created_at) = CURDATE()`,
+      `SELECT COALESCE(SUM(t.amount),0) AS today FROM transactions t 
+       JOIN accounts a ON t.account_id = a.id
+       WHERE t.shop_id = :shopId AND a.code IN ('1000', '1010') AND t.type = 'debit' AND DATE(t.transaction_date) = CURDATE()`,
       { replacements: { shopId }, type: db.sequelize.QueryTypes.SELECT }
     );
 

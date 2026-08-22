@@ -3,12 +3,15 @@ const { sendSms } = require('../utils/sms');
 
 class ReminderService {
   async sendReminder(shopId, data) {
+    const shop = await db.Shop.findByPk(shopId);
+    const shopPrefix = shop && shop.name ? shop.name : 'LedgerLK';
+
     const customer = await db.Customer.findOne({ where: { id: data.customerId, shop_id: shopId } });
     if (!customer) throw { statusCode: 404, message: 'Customer not found' };
     if (!customer.phone) throw { statusCode: 400, message: 'Customer has no phone number for SMS' };
 
     const text = data.message?.trim() || 
-      `LedgerLK: Dear ${customer.name}, your outstanding balance is Rs. ${Number(customer.balance).toFixed(2)}. Please settle your payment. Thank you.`;
+      `${shopPrefix}: Dear ${customer.name}, your outstanding balance is Rs. ${Number(customer.balance).toFixed(2)}. Please settle your payment. Thank you.`;
 
     let delivered = false;
     let stub = false;

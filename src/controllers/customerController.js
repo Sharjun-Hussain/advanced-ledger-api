@@ -106,7 +106,7 @@ class CustomerController {
           const phone = customer?.phone?.replace(/\D/g, '');
           if (!phone) return;
 
-          const template = config.distributorSmsTemplate || 'Hi {customer_name}, payment of Rs.{amount} received. Balance: Rs.{balance}. Thanks, {shop_name}';
+          const template = config.distributorSmsTemplate || '{shop_name}: Dear {customer_name}, payment of Rs.{amount} received. Balance: Rs.{balance}.';
           
           const message = template
               .replace(/{customer_name}/g, customer.first_name || customer.name || '')
