@@ -60,7 +60,7 @@ class ActivityService {
               u.name as user_name
          FROM activity_logs a
          LEFT JOIN users u ON a.user_id = u.id
-        WHERE a.shop_id = :shopId
+        WHERE a.shop_id = :shopId AND a.action_type NOT IN ('LOGIN', 'LOGOUT', 'SMS_SENT')
         ORDER BY a.created_at DESC
         LIMIT :limit`,
       { replacements: { shopId, limit }, type: db.sequelize.QueryTypes.SELECT }
