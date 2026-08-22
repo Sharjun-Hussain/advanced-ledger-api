@@ -22,8 +22,20 @@ const adminLogin = Joi.object({
   password: Joi.string().required(),
 });
 
+const forgotPassword = Joi.object({
+  phone: Joi.string().required(),
+});
+
+const resetPassword = Joi.object({
+  phone: Joi.string().required(),
+  otp_code: Joi.string().length(6).required(),
+  new_password: Joi.string().min(6).required(),
+});
+
 module.exports = {
   login,
   adminLogin,
   register,
+  forgotPassword,
+  resetPassword,
 };

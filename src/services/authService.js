@@ -1,6 +1,7 @@
 const db = require('../models');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const textLkService = require('./textLkService');
 
 class AuthService {
   async login(phone, password) {
@@ -59,6 +60,68 @@ class AuthService {
       );
 
       return { user, shop, token };
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  }
+
+  async forgotPassword(phone) {
+    const user = await db.User.findOne({ where: { phone, is_active: true } });
+    if (!user) {
+      // Return success even if user not found to prevent user enumeration
+      return { success: true };
+    }
+
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    await db.OtpLog.create({
+      phone,
+      otp_code: otpCode,
+      purpose: 'forgot_password',
+      expires_at: new Date(Date.now() + 15 * 60000) // 15 mins expiry
+    });
+
+    const message = `Your LedgerLK password reset code is ${otpCode}. It will expire in 15 minutes.`;
+    
+    // We pass null for shopId to use global/available config or user's shop_id if required.
+    // However, user has a shop_id.
+    await textLkService.sendSms(user.shop_id, {
+      recipient: phone,
+      message,
+      sender_id: 'LedgerLK' // fallback sender
+    });
+
+    return { success: true };
+  }
+
+  async resetPassword(phone, otpCode, newPassword) {
+    const otpLog = await db.OtpLog.findOne({
+      where: {
+        phone,
+        otp_code: otpCode,
+        purpose: 'forgot_password',
+        used: false
+      }
+    });
+
+    if (!otpLog || otpLog.expires_at < new Date()) {
+      throw { statusCode: 400, message: 'Invalid or expired OTP' };
+    }
+
+    const user = await db.User.findOne({ where: { phone, is_active: true } });
+    if (!user) {
+      throw { statusCode: 404, message: 'User not found' };
+    }
+
+    const hash = await bcrypt.hash(newPassword, 10);
+    
+    const transaction = await db.sequelize.transaction();
+    try {
+      await user.update({ password_hash: hash }, { transaction });
+      await otpLog.update({ used: true }, { transaction });
+      await transaction.commit();
+      return { success: true };
     } catch (error) {
       await transaction.rollback();
       throw error;

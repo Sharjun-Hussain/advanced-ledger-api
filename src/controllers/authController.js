@@ -104,6 +104,34 @@ class AuthController {
       next(err);
     }
   }
+
+  async forgotPassword(req, res, next) {
+    try {
+      const { error, value } = authValidation.forgotPassword.validate(req.body);
+      if (error) {
+        return errorResponse(res, error.details[0].message, 400);
+      }
+
+      await authService.forgotPassword(value.phone);
+      successResponse(res, null, 'If that number is registered, an OTP will be sent to it.');
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async resetPassword(req, res, next) {
+    try {
+      const { error, value } = authValidation.resetPassword.validate(req.body);
+      if (error) {
+        return errorResponse(res, error.details[0].message, 400);
+      }
+
+      await authService.resetPassword(value.phone, value.otp_code, value.new_password);
+      successResponse(res, null, 'Password reset successfully');
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 
