@@ -43,11 +43,17 @@ class ShopService {
   async getDashboard(shopId) {
     const outstanding = await db.Customer.sum('balance', { where: { shop_id: shopId, is_active: 1 } });
     
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
     const [collectionsRes] = await db.sequelize.query(
       `SELECT COALESCE(SUM(t.amount),0) AS today FROM transactions t 
        JOIN accounts a ON t.account_id = a.id
-       WHERE t.shop_id = :shopId AND a.code IN ('1000', '1010') AND t.type = 'debit' AND DATE(t.transaction_date) = CURDATE()`,
-      { replacements: { shopId }, type: db.sequelize.QueryTypes.SELECT }
+       WHERE t.shop_id = :shopId AND a.code IN ('1000', '1010') AND t.type = 'debit' 
+         AND t.transaction_date >= :startOfDay AND t.transaction_date <= :endOfDay`,
+      { replacements: { shopId, startOfDay, endOfDay }, type: db.sequelize.QueryTypes.SELECT }
     );
 
     const [overdueRes] = await db.sequelize.query(
