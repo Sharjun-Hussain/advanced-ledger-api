@@ -67,6 +67,15 @@ class TextLkService {
            config.apiKey = decrypt(config.apiKey); // assuming legacy logic always encrypted
         }
 
+        // Global fallback for missing API Key or Sender ID
+        if (!config.apiKey || !config.senderId) {
+            const globalConfig = await this._getFullConfig(null);
+            if (globalConfig) {
+                config.apiKey = config.apiKey || globalConfig.apiKey;
+                config.senderId = config.senderId || globalConfig.senderId;
+            }
+        }
+
         return config;
     }
 

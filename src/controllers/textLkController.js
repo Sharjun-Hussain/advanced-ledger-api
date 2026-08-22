@@ -65,8 +65,8 @@ const saveConfig = async (req, res, next) => {
 
         const settingsData = { 
             ...currentData, 
-            senderId,
-            enableOrderSms: !!enableOrderSms,
+            senderId: senderId !== undefined ? senderId : currentData.senderId,
+            enableOrderSms: enableOrderSms !== undefined ? !!enableOrderSms : currentData.enableOrderSms,
             orderSmsTemplate: orderSmsTemplate || 'Hi {customer_name}, a loan of Rs.{amount} was added. Balance: Rs.{balance}. Thanks, {shop_name}',
             distributorSmsTemplate: distributorSmsTemplate || 'Hi {customer_name}, payment of Rs.{amount} received. Balance: Rs.{balance}. Thanks, {shop_name}',
             enableInvoiceAttachment: !!enableInvoiceAttachment
