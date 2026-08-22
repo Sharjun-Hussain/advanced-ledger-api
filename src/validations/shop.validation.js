@@ -6,6 +6,7 @@ const updateShop = Joi.object({
   businessType: Joi.string().max(80).optional(),
   languagePref: Joi.string().valid('sinhala', 'tamil', 'english').optional(),
   ownerName: Joi.string().min(2).max(100).optional(),
+  textlkEnabled: Joi.boolean().optional(),
 });
 
 const addStaff = Joi.object({

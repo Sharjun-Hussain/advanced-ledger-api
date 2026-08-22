@@ -54,18 +54,6 @@ class ActivityService {
   async getFeed(shopId, limitStr = '50') {
     const limit = parseInt(limitStr, 10);
     
-    // Fetch newly scaffolded activity logs
-    const activities = await db.sequelize.query(
-      `SELECT a.action_type as type, a.created_at, a.ip_address, a.metadata, 
-              u.name as user_name
-         FROM activity_logs a
-         LEFT JOIN users u ON a.user_id = u.id
-        WHERE a.shop_id = :shopId AND a.action_type NOT IN ('LOGIN', 'LOGOUT', 'SMS_SENT')
-        ORDER BY a.created_at DESC
-        LIMIT :limit`,
-      { replacements: { shopId, limit }, type: db.sequelize.QueryTypes.SELECT }
-    );
-
     // Fetch robust legacy transactions (which are basically double-entry financial activities)
     const transactions = await db.sequelize.query(
       `SELECT t.type, t.transaction_date as created_at, t.amount, t.description, t.reference_type,
@@ -79,16 +67,7 @@ class ActivityService {
       { replacements: { shopId, limit }, type: db.sequelize.QueryTypes.SELECT }
     );
 
-    // Unify them in JS (fast enough for top ~100 records)
     const unified = [
-      ...activities.map(a => ({
-        source: 'audit',
-        type: a.type,
-        created_at: a.created_at,
-        actor: a.user_name || 'System',
-        ip_address: a.ip_address,
-        metadata: typeof a.metadata === 'string' ? JSON.parse(a.metadata) : a.metadata
-      })),
       ...transactions.map(t => ({
         source: 'financial',
         type: t.type === 'debit' ? 'FINANCIAL_IN' : 'FINANCIAL_OUT',
