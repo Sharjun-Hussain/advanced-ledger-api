@@ -9,8 +9,7 @@ const getConfig = async (req, res, next) => {
         const setting = await Setting.findOne({
             where: {
                 shop_id: req.user.shop_id,
-                category: 'textlk_crm',
-                branch_id: null
+                category: 'textlk_crm'
             }
         });
 
@@ -46,8 +45,7 @@ const saveConfig = async (req, res, next) => {
         let setting = await Setting.findOne({
             where: {
                 shop_id: req.user.shop_id,
-                category: 'textlk_crm',
-                branch_id: null
+                category: 'textlk_crm'
             }
         });
 
