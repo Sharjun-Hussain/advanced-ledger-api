@@ -5,7 +5,7 @@ class ShopService {
   async getShopProfile(shopId) {
     const shop = await db.sequelize.query(
       `SELECT s.id, s.name, s.address, s.business_type, s.language_pref, s.phone,
-              s.subscription_status, s.trial_ends_at, s.plan_ends_at,
+              s.subscription_status, s.trial_ends_at, s.plan_ends_at, s.logo,
               p.name AS plan_name, p.max_customers,
               (SELECT COUNT(*) FROM customers c WHERE c.shop_id = s.id AND c.is_active = 1) AS customer_count,
               (SELECT COUNT(*) FROM users u WHERE u.shop_id = s.id AND u.is_active = 1) AS staff_count
