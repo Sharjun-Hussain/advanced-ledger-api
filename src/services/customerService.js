@@ -80,6 +80,7 @@ class CustomerService {
   async updateCustomer(shopId, customerId, data) {
     const updateData = {};
     if (data.name !== undefined) updateData.name = data.name;
+    if (data.customerCode !== undefined) updateData.customer_code = data.customerCode;
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.nic !== undefined) updateData.nic = data.nic;
     if (data.type !== undefined) updateData.type = data.type;
