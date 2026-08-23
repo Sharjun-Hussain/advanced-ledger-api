@@ -52,6 +52,15 @@ class CustomerController {
     }
   }
 
+  async deleteCustomer(req, res, next) {
+    try {
+      const result = await customerService.deleteCustomer(req.user.shop_id, Number(req.params.id));
+      res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async lockCustomer(req, res, next) {
     try {
       const { error, value } = customerValidation.lockCustomer.validate(req.body);

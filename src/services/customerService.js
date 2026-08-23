@@ -90,6 +90,20 @@ class CustomerService {
     return { message: 'Customer updated' };
   }
 
+  async deleteCustomer(shopId, customerId) {
+    const customer = await db.Customer.findOne({
+      where: { id: customerId, shop_id: shopId }
+    });
+    if (!customer) throw { statusCode: 404, message: 'Customer not found' };
+
+    if (Number(customer.balance) > 0) {
+      throw { statusCode: 400, message: 'Cannot delete a customer with an active outstanding balance' };
+    }
+
+    await customer.update({ is_active: false });
+    return { message: 'Customer deleted successfully' };
+  }
+
   async lockCustomer(shopId, customerId, locked) {
     await db.Customer.update({ is_locked: locked ? 1 : 0 }, { where: { id: customerId, shop_id: shopId } });
     return { message: locked ? 'Account locked' : 'Account unlocked' };

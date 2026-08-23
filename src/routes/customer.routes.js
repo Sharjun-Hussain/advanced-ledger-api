@@ -10,6 +10,7 @@ router.get('/', customerController.getCustomers.bind(customerController));
 router.post('/', customerController.addCustomer.bind(customerController));
 router.get('/:id', customerController.getCustomer.bind(customerController));
 router.patch('/:id', customerController.updateCustomer.bind(customerController));
+router.delete('/:id', customerController.deleteCustomer.bind(customerController));
 router.post('/:id/lock', customerController.lockCustomer.bind(customerController));
 router.post('/:id/payment', customerController.recordPayment.bind(customerController));
 router.get('/:id/history', customerController.getCustomerHistory.bind(customerController));
