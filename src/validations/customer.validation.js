@@ -18,6 +18,7 @@ const updateCustomer = Joi.object({
   customCycleDays: Joi.number().integer().min(1).max(365).optional().allow(null),
   loanLimit: Joi.number().min(0).optional(),
   nic: Joi.string().max(20).optional().allow(null, ''),
+  customerCode: Joi.string().max(20).optional().allow(null, ''),
 });
 
 const lockCustomer = Joi.object({
