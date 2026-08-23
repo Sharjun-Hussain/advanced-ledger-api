@@ -33,6 +33,40 @@ class LoanController {
     }
   }
 
+  async updateLoan(req, res, next) {
+    try {
+      const { id } = req.params;
+      const { error, value } = loanValidation.updateLoan.validate(req.body);
+      if (error) return res.status(400).json({ status: 'error', message: error.details[0].message });
+
+      const result = await loanService.updateLoan(req.user.shop_id, id, req.user.id, value);
+      
+      await activityService.logAction(req, 'LOAN_EDITED', 'Loan', id, { 
+        amount: value.amount, 
+        note: value.note 
+      });
+
+      res.status(200).json({ status: 'success', balance: result.balance });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async deleteLoan(req, res, next) {
+    try {
+      const { id } = req.params;
+      const result = await loanService.deleteLoan(req.user.shop_id, id, req.user.id);
+      
+      await activityService.logAction(req, 'LOAN_DELETED', 'Loan', id, { 
+        amount_removed: result.amount_removed 
+      });
+
+      res.status(200).json({ status: 'success', balance: result.balance });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async _triggerSmsAlert(shop_id, customer_id, amount, balance, type) {
     try {
       const { Setting, Customer, Shop } = require('../models');

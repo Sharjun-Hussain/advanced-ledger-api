@@ -9,5 +9,7 @@ router.use(authorize('owner', 'staff'));
 router.get('/', loanController.getLoans.bind(loanController));
 router.post('/', loanController.addLoan.bind(loanController));
 router.post('/:id/payment', loanController.recordLoanPayment.bind(loanController));
+router.put('/:id', loanController.updateLoan.bind(loanController));
+router.delete('/:id', loanController.deleteLoan.bind(loanController));
 
 module.exports = router;

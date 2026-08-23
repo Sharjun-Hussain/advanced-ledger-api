@@ -126,6 +126,97 @@ class LoanService {
       throw error;
     }
   }
+  async updateLoan(shopId, loanId, userId, data) {
+    const transaction = await db.sequelize.transaction();
+    try {
+      const loan = await db.Loan.findOne({
+        where: { id: loanId, shop_id: shopId },
+        include: [{ model: db.Customer, as: 'customer' }],
+        transaction
+      });
+      if (!loan) throw { statusCode: 404, message: 'Loan not found' };
+
+      const amountDiff = data.amount !== undefined ? (Number(data.amount) - Number(loan.amount)) : 0;
+      
+      if (amountDiff !== 0) {
+        if (Number(loan.customer.balance) + amountDiff > Number(loan.customer.loan_limit) && Number(loan.customer.loan_limit) > 0) {
+          throw { statusCode: 409, message: 'Loan limit would be exceeded' };
+        }
+        
+        await loan.customer.update({ 
+          balance: Number(loan.customer.balance) + amountDiff,
+          is_locked: (Number(loan.customer.balance) + amountDiff >= Number(loan.customer.loan_limit) && Number(loan.customer.loan_limit) > 0)
+        }, { transaction });
+
+        // Update legacy transaction
+        await db.sequelize.query(
+          `UPDATE legacy_transactions SET amount = :newAmount, balance_after = balance_after + :amtDiff
+           WHERE loan_id = :loan_id AND type = 'loan'`,
+          { replacements: { newAmount: data.amount, amtDiff: amountDiff, loan_id: loanId }, transaction }
+        );
+
+        // Update generic double-entry
+        await db.Transaction.update(
+          { amount: data.amount },
+          { where: { shop_id: shopId, reference_type: 'Loan', reference_id: loanId.toString() }, transaction } 
+        );
+      }
+
+      await loan.update({ 
+        amount: data.amount !== undefined ? data.amount : loan.amount, 
+        note: data.note !== undefined ? data.note : loan.note 
+      }, { transaction });
+
+      await transaction.commit();
+      return { id: loan.id, balance: loan.customer.balance };
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  }
+
+  async deleteLoan(shopId, loanId, userId) {
+    const transaction = await db.sequelize.transaction();
+    try {
+      const loan = await db.Loan.findOne({
+        where: { id: loanId, shop_id: shopId },
+        include: [{ model: db.Customer, as: 'customer' }],
+        transaction
+      });
+      if (!loan) throw { statusCode: 404, message: 'Loan not found' };
+
+      // Revert customer balance: substract loan given, add back any payments previously deducted
+      const payments = await db.sequelize.query(
+        `SELECT COALESCE(SUM(amount), 0) AS total_paid FROM legacy_transactions WHERE loan_id = :loanId AND type = 'payment'`,
+        { replacements: { loanId }, type: db.sequelize.QueryTypes.SELECT, transaction }
+      );
+      const totalPaid = Number(payments[0].total_paid);
+
+      const netBalanceDeduction = Number(loan.amount) - totalPaid;
+
+      const newBalance = Math.max(0, Number(loan.customer.balance) - netBalanceDeduction);
+
+      await loan.customer.update({ balance: newBalance, is_locked: false }, { transaction });
+
+      await db.sequelize.query(
+        `DELETE FROM legacy_transactions WHERE loan_id = :loanId`,
+        { replacements: { loanId }, transaction }
+      );
+
+      await db.Transaction.destroy({
+        where: { shop_id: shopId, reference_id: loanId.toString(), reference_type: ['Loan', 'Loan Payment'] },
+        transaction
+      });
+
+      await loan.destroy({ transaction });
+
+      await transaction.commit();
+      return { amount_removed: netBalanceDeduction, balance: newBalance };
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  }
 }
 
 module.exports = new LoanService();

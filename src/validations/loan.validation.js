@@ -11,7 +11,14 @@ const makeLoanPayment = Joi.object({
   payment_method: Joi.string().optional().allow('', null),
 });
 
+
+const updateLoan = Joi.object({
+  amount: Joi.number().min(0.01).optional(),
+  note: Joi.string().max(255).optional().allow('', null),
+});
+
 module.exports = {
   addLoan,
   makeLoanPayment,
+  updateLoan,
 };

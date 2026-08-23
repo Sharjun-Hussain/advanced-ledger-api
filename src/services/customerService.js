@@ -206,7 +206,7 @@ class CustomerService {
     );
     const transactions = await db.sequelize.query(
       // Ensure the mobile UI receives legacy syntax ('loan', 'payment')
-      `SELECT id, type, amount, created_at, 'Legacy' AS reference_type FROM legacy_transactions WHERE shop_id = :shopId AND customer_id = :customerId ORDER BY created_at DESC`,
+      `SELECT id, type, amount, created_at, balance_after AS balance, loan_id, 'Legacy' AS reference_type FROM legacy_transactions WHERE shop_id = :shopId AND customer_id = :customerId ORDER BY created_at DESC`,
       { replacements: { shopId, customerId }, type: db.sequelize.QueryTypes.SELECT }
     );
     return { loans, transactions };
