@@ -45,7 +45,9 @@ class CustomerService {
       );
       const nextSeq = seqResult.next_seq;
       const prefix = data.kind === 'distributor' ? 'D' : 'C';
-      const customerCode = `${prefix}-${shopId}-${String(nextSeq).padStart(4, '0')}`;
+      const customerCode = data.customerCode && data.customerCode.trim() !== ''
+        ? data.customerCode.trim()
+        : `${prefix}-${shopId}-${String(nextSeq).padStart(4, '0')}`;
       const qrCode = crypto.randomUUID().replace(/-/g, '');
 
       const customer = await db.Customer.create({
