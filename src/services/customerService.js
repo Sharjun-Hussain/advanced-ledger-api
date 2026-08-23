@@ -154,42 +154,31 @@ class CustomerService {
         }
       }
 
-      // 1. Get AR Account
-      const [arAccount] = await db.Account.findOrCreate({
-        where: { shop_id: shopId, code: '1100' },
-        defaults: { name: 'Accounts Receivable', type: 'asset' },
-        transaction
-      });
+      if (customer.kind === 'distributor') {
+        // Distributor Payment (We pay them: Cash Out, Liability Down)
+        const [apAccount] = await db.Account.findOrCreate({ where: { shop_id: shopId, code: '2100' }, defaults: { name: 'Accounts Payable', type: 'liability' }, transaction });
+        const [cashAccount] = await db.Account.findOrCreate({ where: { shop_id: shopId, code: '1000' }, defaults: { name: 'Cash', type: 'asset' }, transaction });
 
-      // 2. Get Cash Account
-      const [cashAccount] = await db.Account.findOrCreate({
-        where: { shop_id: shopId, code: '1000' },
-        defaults: { name: 'Cash', type: 'asset' },
-        transaction
-      });
+        await accountingService.recordTransaction({
+          shop_id: shopId, account_id: apAccount.id, customer_id: customerId, amount: amount, type: 'debit', reference_type: 'Payment', transaction_date: new Date(), description: `Paid to Distributor ${customer.name}`
+        }, transaction);
 
-      // 3. Record Accounting Transactions (Credit AR, Debit Cash)
-      await accountingService.recordTransaction({
-        shop_id: shopId,
-        account_id: arAccount.id,
-        customer_id: customerId,
-        amount: amount,
-        type: 'credit',
-        reference_type: 'Payment',
-        transaction_date: new Date(),
-        description: `Loan Payment from ${customer.name}`
-      }, transaction);
+        await accountingService.recordTransaction({
+          shop_id: shopId, account_id: cashAccount.id, customer_id: customerId, amount: amount, type: 'credit', reference_type: 'Payment', transaction_date: new Date(), description: `Paid to Distributor ${customer.name} (Cash)`
+        }, transaction);
+      } else {
+        // Customer Payment (They pay us: Cash In, Asset Down)
+        const [arAccount] = await db.Account.findOrCreate({ where: { shop_id: shopId, code: '1100' }, defaults: { name: 'Accounts Receivable', type: 'asset' }, transaction });
+        const [cashAccount] = await db.Account.findOrCreate({ where: { shop_id: shopId, code: '1000' }, defaults: { name: 'Cash', type: 'asset' }, transaction });
 
-      await accountingService.recordTransaction({
-        shop_id: shopId,
-        account_id: cashAccount.id,
-        customer_id: customerId,
-        amount: amount,
-        type: 'debit',
-        reference_type: 'Payment',
-        transaction_date: new Date(),
-        description: `Loan Payment from ${customer.name} (Cash)`
-      }, transaction);
+        await accountingService.recordTransaction({
+          shop_id: shopId, account_id: arAccount.id, customer_id: customerId, amount: amount, type: 'credit', reference_type: 'Payment', transaction_date: new Date(), description: `Received Payment from ${customer.name}`
+        }, transaction);
+
+        await accountingService.recordTransaction({
+          shop_id: shopId, account_id: cashAccount.id, customer_id: customerId, amount: amount, type: 'debit', reference_type: 'Payment', transaction_date: new Date(), description: `Received Payment from ${customer.name} (Cash)`
+        }, transaction);
+      }
 
       await transaction.commit();
       return { balance: newBalance };

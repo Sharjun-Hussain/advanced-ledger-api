@@ -58,15 +58,27 @@ class LoanService {
         }
       );
 
-      const [arAccount] = await db.Account.findOrCreate({ where: { shop_id: shopId, code: '1100' }, defaults: { name: 'Accounts Receivable', type: 'asset' }, transaction });
-      const [revenueAccount] = await db.Account.findOrCreate({ where: { shop_id: shopId, code: '4000' }, defaults: { name: 'Sales Revenue', type: 'revenue' }, transaction });
+      if (customer.kind === 'distributor') {
+        const [apAccount] = await db.Account.findOrCreate({ where: { shop_id: shopId, code: '2100' }, defaults: { name: 'Accounts Payable', type: 'liability' }, transaction });
+        const [cogsAccount] = await db.Account.findOrCreate({ where: { shop_id: shopId, code: '5000' }, defaults: { name: 'Cost of Goods Sold', type: 'expense' }, transaction });
 
-      await accountingService.recordTransaction({
-        shop_id: shopId, account_id: arAccount.id, customer_id: data.customerId, amount: data.amount, type: 'debit', reference_type: 'Loan', reference_id: loan.id.toString(), transaction_date: new Date(), description: `Credit Sale to ${customer.name}`
-      }, transaction);
-      await accountingService.recordTransaction({
-        shop_id: shopId, account_id: revenueAccount.id, customer_id: data.customerId, amount: data.amount, type: 'credit', reference_type: 'Loan', reference_id: loan.id.toString(), transaction_date: new Date(), description: `Store Credit Issued to ${customer.name} (Revenue)`
-      }, transaction);
+        await accountingService.recordTransaction({
+          shop_id: shopId, account_id: apAccount.id, customer_id: data.customerId, amount: data.amount, type: 'credit', reference_type: 'Loan', reference_id: loan.id.toString(), transaction_date: new Date(), description: `Purchased from ${customer.name} on Credit`
+        }, transaction);
+        await accountingService.recordTransaction({
+          shop_id: shopId, account_id: cogsAccount.id, customer_id: data.customerId, amount: data.amount, type: 'debit', reference_type: 'Loan', reference_id: loan.id.toString(), transaction_date: new Date(), description: `Cost of Goods from ${customer.name}`
+        }, transaction);
+      } else {
+        const [arAccount] = await db.Account.findOrCreate({ where: { shop_id: shopId, code: '1100' }, defaults: { name: 'Accounts Receivable', type: 'asset' }, transaction });
+        const [revenueAccount] = await db.Account.findOrCreate({ where: { shop_id: shopId, code: '4000' }, defaults: { name: 'Sales Revenue', type: 'revenue' }, transaction });
+
+        await accountingService.recordTransaction({
+          shop_id: shopId, account_id: arAccount.id, customer_id: data.customerId, amount: data.amount, type: 'debit', reference_type: 'Loan', reference_id: loan.id.toString(), transaction_date: new Date(), description: `Credit Sale to ${customer.name}`
+        }, transaction);
+        await accountingService.recordTransaction({
+          shop_id: shopId, account_id: revenueAccount.id, customer_id: data.customerId, amount: data.amount, type: 'credit', reference_type: 'Loan', reference_id: loan.id.toString(), transaction_date: new Date(), description: `Store Credit Issued to ${customer.name} (Revenue)`
+        }, transaction);
+      }
 
       await transaction.commit();
       
@@ -100,15 +112,27 @@ class LoanService {
         }
       );
 
-      const [arAccount] = await db.Account.findOrCreate({ where: { shop_id: shopId, code: '1100' }, defaults: { name: 'Accounts Receivable', type: 'asset' }, transaction });
-      const [cashAccount] = await db.Account.findOrCreate({ where: { shop_id: shopId, code: '1000' }, defaults: { name: 'Cash', type: 'asset' }, transaction });
-      
-      await accountingService.recordTransaction({
-        shop_id: shopId, account_id: arAccount.id, customer_id: loan.customer_id, amount: amount, type: 'credit', reference_type: 'Loan Payment', reference_id: loan.id.toString(), transaction_date: new Date(), description: `Loan Repayment from ${loan.customer.name}`
-      }, transaction);
-      await accountingService.recordTransaction({
-        shop_id: shopId, account_id: cashAccount.id, customer_id: loan.customer_id, amount: amount, type: 'debit', reference_type: 'Loan Payment', reference_id: loan.id.toString(), transaction_date: new Date(), description: `Loan Repayment from ${loan.customer.name} (Cash)`
-      }, transaction);
+      if (loan.customer.kind === 'distributor') {
+        const [apAccount] = await db.Account.findOrCreate({ where: { shop_id: shopId, code: '2100' }, defaults: { name: 'Accounts Payable', type: 'liability' }, transaction });
+        const [cashAccount] = await db.Account.findOrCreate({ where: { shop_id: shopId, code: '1000' }, defaults: { name: 'Cash', type: 'asset' }, transaction });
+        
+        await accountingService.recordTransaction({
+          shop_id: shopId, account_id: apAccount.id, customer_id: loan.customer_id, amount: amount, type: 'debit', reference_type: 'Loan Payment', reference_id: loan.id.toString(), transaction_date: new Date(), description: `Paid to Distributor ${loan.customer.name}`
+        }, transaction);
+        await accountingService.recordTransaction({
+          shop_id: shopId, account_id: cashAccount.id, customer_id: loan.customer_id, amount: amount, type: 'credit', reference_type: 'Loan Payment', reference_id: loan.id.toString(), transaction_date: new Date(), description: `Paid to Distributor ${loan.customer.name} (Cash)`
+        }, transaction);
+      } else {
+        const [arAccount] = await db.Account.findOrCreate({ where: { shop_id: shopId, code: '1100' }, defaults: { name: 'Accounts Receivable', type: 'asset' }, transaction });
+        const [cashAccount] = await db.Account.findOrCreate({ where: { shop_id: shopId, code: '1000' }, defaults: { name: 'Cash', type: 'asset' }, transaction });
+        
+        await accountingService.recordTransaction({
+          shop_id: shopId, account_id: arAccount.id, customer_id: loan.customer_id, amount: amount, type: 'credit', reference_type: 'Loan Payment', reference_id: loan.id.toString(), transaction_date: new Date(), description: `Loan Repayment from ${loan.customer.name}`
+        }, transaction);
+        await accountingService.recordTransaction({
+          shop_id: shopId, account_id: cashAccount.id, customer_id: loan.customer_id, amount: amount, type: 'debit', reference_type: 'Loan Payment', reference_id: loan.id.toString(), transaction_date: new Date(), description: `Loan Repayment from ${loan.customer.name} (Cash)`
+        }, transaction);
+      }
 
       const [{ total }] = await db.sequelize.query(
         `SELECT COALESCE(SUM(amount),0) AS total FROM legacy_transactions WHERE loan_id = :loanId AND type = 'payment'`,
