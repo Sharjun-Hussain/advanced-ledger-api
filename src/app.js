@@ -41,7 +41,7 @@ app.use(rateLimiter);
 
 // Serve static uploaded files mapped identically to ERP standards
 const path = require('path');
-app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Health check
 app.get('/health', (req, res) => {

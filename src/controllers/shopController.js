@@ -13,8 +13,16 @@ class ShopController {
 
   async updateProfile(req, res, next) {
     try {
+      console.log('\n--- PROFILE UPDATE REQUEST ---');
+      console.log('Body:', req.body);
+      console.log('File:', req.file);
+      console.log('------------------------------\n');
+
       const { error, value } = shopValidation.updateShop.validate(req.body);
-      if (error) return res.status(400).json({ status: 'error', message: error.details[0].message });
+      if (error) {
+        console.log('Validation Error:', error.details[0].message);
+        return res.status(400).json({ status: 'error', message: error.details[0].message });
+      }
 
       if (req.file) {
         value.logo = req.file.filename;
