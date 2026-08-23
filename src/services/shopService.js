@@ -42,6 +42,7 @@ class ShopService {
   }
 
   async getDashboard(shopId) {
+    const shop = await db.Shop.findByPk(shopId, { attributes: ['logo'] });
     const outstanding = await db.Customer.sum('balance', { where: { shop_id: shopId, is_active: 1 } });
     
     const startOfDay = new Date();
@@ -66,6 +67,7 @@ class ShopService {
     const recent = await activityService.getFeed(shopId, 10);
 
     return {
+      logo: shop?.logo || null,
       outstanding: outstanding || 0,
       collections: collectionsRes.today,
       overdue: { count: overdueRes.count, amount: overdueRes.amount },
