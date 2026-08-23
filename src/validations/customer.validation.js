@@ -28,6 +28,12 @@ const lockCustomer = Joi.object({
 const makePayment = Joi.object({
   amount: Joi.number().min(0.01).required(),
   payment_method: Joi.string().optional().allow('', null),
+  cheque_details: Joi.object({
+    cheque_number: Joi.string().required(),
+    cheque_date: Joi.string().required(),
+    bank_name: Joi.string().required(),
+    branch_name: Joi.string().optional().allow('', null),
+  }).optional().allow(null),
 });
 
 module.exports = {

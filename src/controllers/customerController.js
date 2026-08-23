@@ -78,7 +78,14 @@ class CustomerController {
       const { error, value } = customerValidation.makePayment.validate(req.body);
       if (error) return res.status(400).json({ status: 'error', message: error.details[0].message });
 
-      const result = await customerService.recordPayment(req.user.shop_id, Number(req.params.id), req.user.id, value.amount);
+      const result = await customerService.recordPayment(
+        req.user.shop_id, 
+        Number(req.params.id), 
+        req.user.id, 
+        value.amount,
+        value.payment_method,
+        value.cheque_details
+      );
       res.status(200).json({ message: 'Payment recorded', balance: result.balance });
 
       // Trigger SMS Alert in background
