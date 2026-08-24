@@ -1,4 +1,4 @@
-const db = require('../models');
+const db = require("../models");
 
 class ActivityService {
   /**
@@ -9,11 +9,21 @@ class ActivityService {
    * @param {Number} entityId - Model Primary Key
    * @param {Object} metadata - Optional JSON metadata
    */
-  async logAction(req, actionType, entityType = null, entityId = null, metadata = {}) {
+  async logAction(
+    req,
+    actionType,
+    entityType = null,
+    entityId = null,
+    metadata = {},
+  ) {
     try {
       const shopId = req.user?.shop_id || null;
       const userId = req.user?.id || null;
-      const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || null;
+      const ipAddress =
+        req.ip ||
+        req.headers["x-forwarded-for"] ||
+        req.connection?.remoteAddress ||
+        null;
 
       await db.ActivityLog.create({
         shop_id: shopId,
@@ -22,17 +32,28 @@ class ActivityService {
         entity_type: entityType,
         entity_id: entityId,
         ip_address: ipAddress,
-        metadata: metadata
+        metadata: metadata,
       });
     } catch (err) {
-      console.error('Failed to write activity log. Ignoring to prevent blocking process.', err);
+      console.error(
+        "Failed to write activity log. Ignoring to prevent blocking process.",
+        err,
+      );
     }
   }
 
   /**
    * System-level logging where we might not have a `req` object.
    */
-  async logSystemAction(shopId, userId, actionType, entityType = null, entityId = null, metadata = {}, ipAddress = null) {
+  async logSystemAction(
+    shopId,
+    userId,
+    actionType,
+    entityType = null,
+    entityId = null,
+    metadata = {},
+    ipAddress = null,
+  ) {
     try {
       await db.ActivityLog.create({
         shop_id: shopId,
@@ -41,52 +62,57 @@ class ActivityService {
         entity_type: entityType,
         entity_id: entityId,
         ip_address: ipAddress,
-        metadata: metadata
+        metadata: metadata,
       });
     } catch (err) {
-      console.error('Failed to write system activity log.', err);
+      console.error("Failed to write system activity log.", err);
     }
   }
 
   /**
    * Fetch Unified Activity Feed
    */
-  async getFeed(shopId, limitStr = '50') {
+  async getFeed(shopId, limitStr = "50") {
     const limit = parseInt(limitStr, 10);
-    
+
     // Fetch robust legacy transactions (which are basically double-entry financial activities)
     const transactions = await db.sequelize.query(
       `SELECT t.type, t.transaction_date as created_at, t.amount, t.description, t.reference_type,
-              c.name as customer_name, a.name as account_name
+              c.id as customer_id, c.name as customer_name, a.name as account_name
          FROM transactions t
          LEFT JOIN customers c ON t.customer_id = c.id
          LEFT JOIN accounts a ON t.account_id = a.id
         WHERE t.shop_id = :shopId 
           AND (
-            a.code IN ('1000', '1010') 
+            a.code IN ('1000', '1010', '1050', '2110') 
             OR 
             (a.code = '1100' AND t.type = 'debit' AND t.reference_type = 'Loan')
           )
         ORDER BY t.transaction_date DESC, t.id DESC
         LIMIT :limit`,
-      { replacements: { shopId, limit }, type: db.sequelize.QueryTypes.SELECT }
+      { replacements: { shopId, limit }, type: db.sequelize.QueryTypes.SELECT },
     );
 
     const unified = [
-      ...transactions.map(t => ({
-        source: 'financial',
-        type: (t.description || '').toLowerCase().includes('credit sale') || (t.reference_type === 'Loan' && t.type === 'debit') 
-              ? 'FINANCIAL_OUT' 
-              : (t.type === 'debit' ? 'FINANCIAL_IN' : 'FINANCIAL_OUT'),
+      ...transactions.map((t) => ({
+        source: "financial",
+        type:
+          (t.description || "").toLowerCase().includes("credit sale") ||
+          (t.reference_type === "Loan" && t.type === "debit")
+            ? "FINANCIAL_OUT"
+            : t.type === "debit"
+              ? "FINANCIAL_IN"
+              : "FINANCIAL_OUT",
         created_at: t.created_at,
-        actor: t.customer_name || t.account_name || 'General',
+        actor: t.customer_name || t.account_name || "General",
         ip_address: null,
         metadata: {
+          customer_id: t.customer_id,
           amount: t.amount,
           reference: t.reference_type,
-          description: t.description
-        }
-      }))
+          description: t.description,
+        },
+      })),
     ];
 
     // Sort descending chronologically
@@ -98,7 +124,7 @@ class ActivityService {
   /**
    * Fetch Paginated Feed across ALL shops for Super Admin
    */
-  async getAdminFeed({ page = 1, perPage = 15, sortOrder = 'DESC' }) {
+  async getAdminFeed({ page = 1, perPage = 15, sortOrder = "DESC" }) {
     const limit = parseInt(perPage, 10) || 15;
     const offset = (Math.max(1, parseInt(page, 10)) - 1) * limit;
 
@@ -107,31 +133,36 @@ class ActivityService {
              u.name as user_name, u.phone as user_phone
          FROM activity_logs a
          LEFT JOIN users u ON a.user_id = u.id
-        ORDER BY a.created_at ${sortOrder === 'ASC' ? 'ASC' : 'DESC'}
+        ORDER BY a.created_at ${sortOrder === "ASC" ? "ASC" : "DESC"}
         LIMIT :limit OFFSET :offset
     `;
     const logs = await db.sequelize.query(query, {
-      replacements: { limit, offset }, type: db.sequelize.QueryTypes.SELECT
+      replacements: { limit, offset },
+      type: db.sequelize.QueryTypes.SELECT,
     });
 
-    const [[{ total }]] = await db.sequelize.query('SELECT COUNT(*) as total FROM activity_logs');
+    const [[{ total }]] = await db.sequelize.query(
+      "SELECT COUNT(*) as total FROM activity_logs",
+    );
 
     return {
-      data: logs.map(a => ({
+      data: logs.map((a) => ({
         id: a.id,
         action: a.action,
         module: a.module,
         created_at: a.created_at,
-        description: typeof a.payload === 'string' 
-             ? (JSON.parse(a.payload)?.description || 'System log') 
-             : (a.payload?.description || 'System Action Captured'),
+        description:
+          typeof a.payload === "string"
+            ? JSON.parse(a.payload)?.description || "System log"
+            : a.payload?.description || "System Action Captured",
         ip_address: a.ip_address,
-        payload: typeof a.payload === 'string' ? JSON.parse(a.payload) : a.payload,
-        user: { name: a.user_name || 'System', phone: a.user_phone }
+        payload:
+          typeof a.payload === "string" ? JSON.parse(a.payload) : a.payload,
+        user: { name: a.user_name || "System", phone: a.user_phone },
       })),
       total: parseInt(total, 10),
       last_page: Math.ceil(parseInt(total, 10) / limit),
-      current_page: parseInt(page, 10)
+      current_page: parseInt(page, 10),
     };
   }
 }
