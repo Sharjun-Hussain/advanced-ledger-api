@@ -25,6 +25,8 @@ class CustomerController {
         customer_code: customer.customer_code 
       });
 
+      this._triggerRegistrationSmsAlert(req.user.shop_id, customer);
+
       res.status(201).json({ customer });
     } catch (err) {
       next(err);
@@ -140,6 +142,44 @@ class CustomerController {
       console.error('[SMS ERROR] Failed to send payment SMS:', err.message);
     }
   }
+  async _triggerRegistrationSmsAlert(shop_id, customer) {
+    try {
+      if (!customer || !customer.qr_code || !customer.phone) return;
+      const { Setting, Shop } = require('../models');
+      const textLkService = require('../services/textLkService');
+
+      const setting = await Setting.findOne({
+        where: { shop_id, category: 'textlk_crm' }
+      });
+
+      if (setting) {
+        const config = typeof setting.settings_data === 'string' ? JSON.parse(setting.settings_data) : setting.settings_data;
+
+        if (config.enableCustomerRegistrationSms) {
+          const shop = await Shop.findByPk(shop_id);
+          const phone = customer.phone.replace(/\D/g, '');
+          if (!phone) return;
+
+          const template = config.customerRegistrationSmsTemplate || '{shop_name}: Welcome {customer_name}! Account/Payment link: {qr_link}';
+          
+          const qrLink = `https://ledger.lk/c/${customer.qr_code}`;
+
+          const message = template
+              .replace(/{customer_name}/g, customer.first_name || customer.name || '')
+              .replace(/{shop_name}/g, shop ? shop.name : '')
+              .replace(/{qr_link}/g, qrLink);
+
+          await textLkService.sendSms(shop_id, {
+            recipient: phone,
+            message: message
+          });
+        }
+      }
+    } catch (err) {
+      console.error('[SMS ERROR] Failed to send registration SMS:', err.message);
+    }
+  }
+
   async getCustomerLedger(req, res, next) {
     try {
       const accountingService = require('../services/accountingService');
