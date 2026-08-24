@@ -30,7 +30,9 @@ const makePayment = Joi.object({
   payment_method: Joi.string().optional().allow('', null),
   cheque_details: Joi.object({
     cheque_number: Joi.string().required(),
-    cheque_date: Joi.string().required(),
+    cheque_date: Joi.string().pattern(/^\\d{4}-\\d{2}-\\d{2}$/).required().messages({
+      'string.pattern.base': 'cheque_date must be in YYYY-MM-DD format'
+    }),
     bank_name: Joi.string().required(),
     branch_name: Joi.string().optional().allow('', null),
   }).optional().allow(null),
