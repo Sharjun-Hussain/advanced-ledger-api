@@ -24,6 +24,7 @@
     "morgan": "^1.11.0",
     "multer": "^2.2.0",
     "mysql2": "^3.23.2",
+    "node-cron": "^4.6.0",
     "rate-limiter-flexible": "^11.2.0",
     "sequelize": "^6.37.8",
     "sequelize-cli": "^6.6.5",

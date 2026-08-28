@@ -2,18 +2,23 @@ const Joi = require('joi');
 
 const addCustomer = Joi.object({
   name: Joi.string().min(2).max(100).required(),
-  phone: Joi.string().max(20).optional().allow(null, ''),
+  phone: Joi.string().pattern(/^(?:\+94|0)?[0-9]{9}$/).messages({
+    'string.pattern.base': 'Phone number must be a valid Sri Lankan format (e.g. 0771234567 or +94771234567)'
+  }).optional().allow(null, ''),
   type: Joi.string().valid('daily', 'weekly', 'monthly', 'custom').required(),
   kind: Joi.string().valid('customer', 'distributor').optional(),
   customCycleDays: Joi.number().integer().min(1).max(365).optional().allow(null),
   loanLimit: Joi.number().min(0).optional(),
+  openingBalance: Joi.number().min(0).optional(),
   nic: Joi.string().max(20).optional().allow(null, ''),
   customerCode: Joi.string().max(20).optional().allow(null, ''),
 });
 
 const updateCustomer = Joi.object({
   name: Joi.string().min(2).max(100).optional(),
-  phone: Joi.string().max(20).optional().allow(null, ''),
+  phone: Joi.string().pattern(/^(?:\+94|0)?[0-9]{9}$/).messages({
+    'string.pattern.base': 'Phone number must be a valid Sri Lankan format (e.g. 0771234567 or +94771234567)'
+  }).optional().allow(null, ''),
   type: Joi.string().valid('daily', 'weekly', 'monthly', 'custom').optional(),
   customCycleDays: Joi.number().integer().min(1).max(365).optional().allow(null),
   loanLimit: Joi.number().min(0).optional(),

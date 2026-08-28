@@ -42,7 +42,9 @@ class ShopService {
   }
 
   async getDashboard(shopId) {
-    const shop = await db.Shop.findByPk(shopId, { attributes: ['logo'] });
+    const shop = await db.Shop.findByPk(shopId, { 
+      attributes: ['logo', 'subscription_status', 'trial_ends_at', 'plan_ends_at'] 
+    });
     const outstanding = await db.Customer.sum('balance', { where: { shop_id: shopId, is_active: 1 } });
     
     const startOfDay = new Date();
@@ -68,6 +70,9 @@ class ShopService {
 
     return {
       logo: shop?.logo || null,
+      subscription_status: shop?.subscription_status || 'trial',
+      trial_ends_at: shop?.trial_ends_at || null,
+      plan_ends_at: shop?.plan_ends_at || null,
       outstanding: outstanding || 0,
       collections: collectionsRes.today,
       overdue: { count: overdueRes.count, amount: overdueRes.amount },

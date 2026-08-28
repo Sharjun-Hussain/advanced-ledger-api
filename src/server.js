@@ -8,9 +8,12 @@ const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
     try {
-        // Authenticate database here
         // await db.sequelize.authenticate();
         // logger.info('✅ Database connection established successfully.');
+
+        // Initialize cron jobs
+        const cronJobs = require('./jobs/subscriptionCron');
+        cronJobs.initScheduledJobs();
 
         app.listen(PORT, () => {
             logger.info(`🚀 LedgerLK Server listening on port ${PORT}`);

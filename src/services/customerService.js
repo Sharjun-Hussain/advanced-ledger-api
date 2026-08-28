@@ -50,6 +50,8 @@ class CustomerService {
         : `${prefix}-${shopId}-${String(nextSeq).padStart(4, '0')}`;
       const qrCode = crypto.randomUUID().replace(/-/g, '');
 
+      const openingBalance = data.openingBalance ? parseFloat(data.openingBalance) : 0;
+
       const customer = await db.Customer.create({
         shop_id: shopId,
         kind: data.kind || 'customer',
@@ -60,8 +62,54 @@ class CustomerService {
         qr_code: qrCode,
         type: data.type,
         custom_cycle_days: data.customCycleDays,
-        loan_limit: data.loanLimit || 0
+        loan_limit: data.loanLimit || 0,
+        balance: openingBalance
       }, { transaction });
+
+      if (openingBalance > 0) {
+        // Double-entry setup for opening balances
+        await accountingService.ensureDefaultAccounts(shopId, transaction);
+        const [equityAccount] = await db.Account.findOrCreate({ 
+            where: { shop_id: shopId, code: '3900' }, 
+            defaults: { name: 'Opening Balance Equity', type: 'equity' }, 
+            transaction 
+        });
+
+        if (customer.kind === 'distributor') {
+            const [apAccount] = await db.Account.findOrCreate({ 
+                where: { shop_id: shopId, code: '2100' }, 
+                defaults: { name: 'Accounts Payable', type: 'liability' }, 
+                transaction 
+            });
+            await accountingService.recordTransaction({
+                shop_id: shopId, account_id: apAccount.id, customer_id: customer.id, amount: openingBalance, type: 'credit', reference_type: 'Opening Balance', transaction_date: new Date(), description: `Opening Balance for Distributor ${customer.name}`
+            }, transaction);
+            await accountingService.recordTransaction({
+                shop_id: shopId, account_id: equityAccount.id, customer_id: customer.id, amount: openingBalance, type: 'debit', reference_type: 'Opening Balance', transaction_date: new Date(), description: `Opening Balance Offset for ${customer.name}`
+            }, transaction);
+        } else {
+            const [arAccount] = await db.Account.findOrCreate({ 
+                where: { shop_id: shopId, code: '1100' }, 
+                defaults: { name: 'Accounts Receivable', type: 'asset' }, 
+                transaction 
+            });
+            await accountingService.recordTransaction({
+                shop_id: shopId, account_id: arAccount.id, customer_id: customer.id, amount: openingBalance, type: 'debit', reference_type: 'Opening Balance', transaction_date: new Date(), description: `Opening Balance for Customer ${customer.name}`
+            }, transaction);
+            await accountingService.recordTransaction({
+                shop_id: shopId, account_id: equityAccount.id, customer_id: customer.id, amount: openingBalance, type: 'credit', reference_type: 'Opening Balance', transaction_date: new Date(), description: `Opening Balance Offset for ${customer.name}`
+            }, transaction);
+        }
+        
+        // Also insert into Legacy Transactions so it shows in basic Customer History feeds
+        await db.sequelize.query(
+          `INSERT INTO legacy_transactions (shop_id, customer_id, loan_id, type, amount, balance_after, created_by, created_at)
+           VALUES (:shopId, :customerId, NULL, 'loan', :amount, :amount, NULL, :createdAt)`,
+          {
+            replacements: { shopId, customerId: customer.id, amount: openingBalance, createdAt: new Date() }, transaction
+          }
+        );
+      }
 
       await transaction.commit();
       return { id: customer.id, customer_code: customer.customer_code, qr_code: customer.qr_code };

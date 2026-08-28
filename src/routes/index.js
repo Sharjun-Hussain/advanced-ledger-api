@@ -18,6 +18,9 @@ const chequeRoutes = require('./cheque.routes');
 
 router.get('/me', authenticate, authController.getUserProfile.bind(authController));
 
+const publicRoutes = require('./public.routes');
+
+router.use('/public', publicRoutes);
 router.use('/auth', authRoutes);
 router.use('/shop', shopRoutes);
 router.use('/customers', customerRoutes);

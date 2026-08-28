@@ -11,6 +11,7 @@ class AccountingService {
             { code: '1000', name: 'Cash', type: 'asset' },
             { code: '1010', name: 'Bank', type: 'asset' },
             { code: '2100', name: 'Accounts Payable', type: 'liability' },
+            { code: '3900', name: 'Opening Balance Equity', type: 'equity' },
             { code: '4000', name: 'Sales Revenue', type: 'revenue' },
             { code: '5000', name: 'Cost of Goods Sold', type: 'expense' },
         ];
