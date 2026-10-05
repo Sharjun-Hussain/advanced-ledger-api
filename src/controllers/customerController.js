@@ -174,7 +174,7 @@ class CustomerController {
           const phone = customer.phone.replace(/\D/g, '');
           if (!phone) return;
 
-          const template = config.customerRegistrationSmsTemplate || '{shop_name}: Welcome {customer_name}! Account/Payment link: {qr_link}';
+          const template = config.customerRegistrationSmsTemplate || '{shop_name}: Welcome aboard {customer_name}! Your digital credit account is active: {qr_link}';
           
           const qrLink = `https://ledger.lk/c/${customer.qr_code}`;
 

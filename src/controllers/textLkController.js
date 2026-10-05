@@ -76,7 +76,7 @@ const saveConfig = async (req, res, next) => {
             orderSmsTemplate: orderSmsTemplate || '{shop_name}: Dear {customer_name}, a loan of Rs.{amount} was added. Balance: Rs.{balance}.',
             distributorSmsTemplate: distributorSmsTemplate || '{shop_name}: Dear {customer_name}, payment of Rs.{amount} received. Balance: Rs.{balance}.',
             enableCustomerRegistrationSms: enableCustomerRegistrationSms !== undefined ? !!enableCustomerRegistrationSms : currentData.enableCustomerRegistrationSms,
-            customerRegistrationSmsTemplate: customerRegistrationSmsTemplate || '{shop_name}: Welcome {customer_name}! Account/Payment link: {qr_link}',
+            customerRegistrationSmsTemplate: customerRegistrationSmsTemplate || '{shop_name}: Welcome aboard {customer_name}! Your digital credit account is active: {qr_link}',
             enableInvoiceAttachment: !!enableInvoiceAttachment
         };
 
