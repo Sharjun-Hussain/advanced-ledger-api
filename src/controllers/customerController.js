@@ -174,14 +174,25 @@ class CustomerController {
           const phone = customer.phone.replace(/\D/g, '');
           if (!phone) return;
 
-          const template = config.customerRegistrationSmsTemplate || '{shop_name}: Welcome aboard {customer_name}! Your digital credit account is active: {qr_link}';
-          
+          const template = config.customerRegistrationSmsTemplate || '{shop_name}: Welcome aboard {customer_name}! Account created. You will get updates digitally.';
+
           const qrLink = `https://ledger.lk/c/${customer.qr_code}`;
 
-          const message = template
-              .replace(/{customer_name}/g, customer.first_name || customer.name || '')
+          let message = template
+              .replace(/{customer_name}/g, customer.name || '')
               .replace(/{shop_name}/g, shop ? shop.name : '')
               .replace(/{qr_link}/g, qrLink);
+
+          // QR landing page not built yet — never send a dead link.
+          // Scrub any ledger.lk/c URL (from older saved templates) and
+          // tidy leftover phrasing like "link:" with nothing after it.
+          message = message
+              .replace(/https?:\/\/ledger\.lk\/c\/\S+/g, '')
+              .replace(/[{]qr_link[}]/g, '')
+              .replace(/\s{2,}/g, ' ')
+              .replace(/\s+([.,!])/g, '$1')
+              .replace(/link:\s*$/i, '')
+              .trim();
 
           await textLkService.sendSms(shop_id, {
             recipient: phone,
