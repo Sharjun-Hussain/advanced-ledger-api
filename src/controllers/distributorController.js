@@ -100,7 +100,7 @@ class DistributorController {
       if (setting) {
         const config = typeof setting.settings_data === 'string' ? JSON.parse(setting.settings_data) : setting.settings_data;
         
-        if (config.enableOrderSms) {
+        if (config.enablePaymentSms ?? config.enableOrderSms) {
           const customer = await Customer.findByPk(customer_id);
           const shop = await Shop.findByPk(shop_id);
           const phone = customer?.phone?.replace(/\D/g, '');

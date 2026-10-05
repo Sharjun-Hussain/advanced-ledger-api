@@ -33,7 +33,7 @@ const getConfig = async (req, res, next) => {
 
 const saveConfig = async (req, res, next) => {
     try {
-        const { apiKey, senderId, enabled, enableOrderSms, orderSmsTemplate, distributorSmsTemplate, enableCustomerRegistrationSms, customerRegistrationSmsTemplate, enableInvoiceAttachment } = req.body;
+        const { apiKey, senderId, enabled, enableOrderSms, enablePaymentSms, orderSmsTemplate, distributorSmsTemplate, enableCustomerRegistrationSms, customerRegistrationSmsTemplate, enableInvoiceAttachment } = req.body;
 
         // 1. Update Shop toggle
         await Shop.update(
@@ -51,21 +51,20 @@ const saveConfig = async (req, res, next) => {
 
         const currentData = setting ? (typeof setting.settings_data === 'string' ? JSON.parse(setting.settings_data) : setting.settings_data) : {};
         
+        // Shop name travels as the SMS sender ID, so {shop_name} is
+        // optional in bodies — only {customer_name} is mandatory.
         if (orderSmsTemplate) {
             if (orderSmsTemplate.length > 160) return res.status(400).json({ status: 'error', message: 'Order SMS must be under 160 characters' });
-            if (!orderSmsTemplate.includes('{shop_name}')) return res.status(400).json({ status: 'error', message: 'Order SMS must contain {shop_name}' });
             if (!orderSmsTemplate.includes('{customer_name}')) return res.status(400).json({ status: 'error', message: 'Order SMS must contain {customer_name}' });
         }
 
         if (distributorSmsTemplate) {
             if (distributorSmsTemplate.length > 160) return res.status(400).json({ status: 'error', message: 'Distributor SMS must be under 160 characters' });
-            if (!distributorSmsTemplate.includes('{shop_name}')) return res.status(400).json({ status: 'error', message: 'Distributor SMS must contain {shop_name}' });
             if (!distributorSmsTemplate.includes('{customer_name}')) return res.status(400).json({ status: 'error', message: 'Distributor SMS must contain {customer_name}' });
         }
 
         if (customerRegistrationSmsTemplate) {
             if (customerRegistrationSmsTemplate.length > 160) return res.status(400).json({ status: 'error', message: 'Customer Registration SMS must be under 160 characters' });
-            if (!customerRegistrationSmsTemplate.includes('{shop_name}')) return res.status(400).json({ status: 'error', message: 'Customer Registration SMS must contain {shop_name}' });
             if (!customerRegistrationSmsTemplate.includes('{customer_name}')) return res.status(400).json({ status: 'error', message: 'Customer Registration SMS must contain {customer_name}' });
         }
 
@@ -73,6 +72,7 @@ const saveConfig = async (req, res, next) => {
             ...currentData, 
             senderId: senderId !== undefined ? senderId : currentData.senderId,
             enableOrderSms: enableOrderSms !== undefined ? !!enableOrderSms : currentData.enableOrderSms,
+            enablePaymentSms: enablePaymentSms !== undefined ? !!enablePaymentSms : currentData.enablePaymentSms,
             orderSmsTemplate: orderSmsTemplate || '{shop_name}: Dear {customer_name}, a loan of Rs.{amount} was added. Balance: Rs.{balance}.',
             distributorSmsTemplate: distributorSmsTemplate || '{shop_name}: Dear {customer_name}, payment of Rs.{amount} received. Balance: Rs.{balance}.',
             enableCustomerRegistrationSms: enableCustomerRegistrationSms !== undefined ? !!enableCustomerRegistrationSms : currentData.enableCustomerRegistrationSms,
