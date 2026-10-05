@@ -10,16 +10,23 @@ class AdminService {
       `SELECT COALESCE(SUM(p.price_monthly),0) AS mrr FROM shops s JOIN plans p ON p.id = s.plan_id WHERE s.subscription_status = 'active'`,
       { type: db.sequelize.QueryTypes.SELECT }
     );
+    const [customersTotal] = await db.sequelize.query('SELECT COUNT(*) AS total FROM customers', { type: db.sequelize.QueryTypes.SELECT }).catch(() => [{ total: 0 }]);
+    const [distributorsTotal] = await db.sequelize.query('SELECT COUNT(*) AS total FROM distributors', { type: db.sequelize.QueryTypes.SELECT }).catch(() => [{ total: 0 }]);
+    const [loansTotal] = await db.sequelize.query('SELECT COUNT(*) AS total, COALESCE(SUM(amount), 0) AS total_amount FROM loans', { type: db.sequelize.QueryTypes.SELECT }).catch(() => [{ total: 0, total_amount: 0 }]);
     const recentShops = await db.sequelize.query(
-      `SELECT s.id, s.name, s.phone, s.subscription_status, s.created_at FROM shops s ORDER BY s.created_at DESC LIMIT 10`,
+      `SELECT s.id, s.name, s.phone, s.business_type, s.subscription_status, s.created_at FROM shops s ORDER BY s.created_at DESC LIMIT 10`,
       { type: db.sequelize.QueryTypes.SELECT }
     );
 
     return {
-      totalShops: shopsTotal.total || 0,
-      activeShops: activeShops.total || 0,
-      payingShops: payingShops.total || 0,
-      mrr: mrrData.mrr || 0,
+      totalShops: Number(shopsTotal?.total || 0),
+      activeShops: Number(activeShops?.total || 0),
+      payingShops: Number(payingShops?.total || 0),
+      mrr: Number(mrrData?.mrr || 0),
+      totalCustomers: Number(customersTotal?.total || 0),
+      totalDistributors: Number(distributorsTotal?.total || 0),
+      totalLoans: Number(loansTotal?.total || 0),
+      totalCreditAmount: Number(loansTotal?.total_amount || 0),
       recentShops
     };
   }

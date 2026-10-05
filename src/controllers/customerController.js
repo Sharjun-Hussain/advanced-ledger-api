@@ -115,27 +115,41 @@ class CustomerController {
         where: { shop_id, category: 'textlk_crm' }
       });
 
-      if (setting) {
+      if (!setting) {
+        console.warn(`[SMS SKIP] shop=${shop_id}: no textlk_crm settings row`);
+        return;
+      }
+      {
         const config = typeof setting.settings_data === 'string' ? JSON.parse(setting.settings_data) : setting.settings_data;
-        
-        if (config.enablePaymentSms ?? config.enableOrderSms) {
+
+        if (!(config.enablePaymentSms ?? config.enableOrderSms)) {
+          console.warn(`[SMS SKIP] shop=${shop_id} customer=${customer_id}: payment template disabled`);
+          return;
+        }
+        {
           const customer = await Customer.findByPk(customer_id);
           const shop = await Shop.findByPk(shop_id);
           const phone = customer?.phone?.replace(/\D/g, '');
-          if (!phone) return;
+          if (!phone) {
+            console.warn(`[SMS SKIP] shop=${shop_id} customer=${customer_id}: no phone number`);
+            return;
+          }
 
           const template = config.distributorSmsTemplate || '{shop_name}: Dear {customer_name}, payment of Rs.{amount} received. Balance: Rs.{balance}.';
-          
+
           const message = template
-              .replace(/{customer_name}/g, customer.first_name || customer.name || '')
+              .replace(/{customer_name}/g, customer.name || '')
               .replace(/{amount}/g, parseFloat(amount).toFixed(2))
               .replace(/{balance}/g, parseFloat(balance).toFixed(2))
               .replace(/{shop_name}/g, shop ? shop.name : '');
-              
-          await textLkService.sendSms(shop_id, {
+
+          const sent = await textLkService.sendSms(shop_id, {
             recipient: phone,
             message: message
           });
+          if (!sent) {
+            console.warn(`[SMS SKIP] shop=${shop_id} customer=${customer_id}: gateway disabled/unconfigured`);
+          }
         }
       }
     } catch (err) {

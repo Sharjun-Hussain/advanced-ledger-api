@@ -148,6 +148,7 @@ class CustomerService {
       where: { id: customerId, shop_id: shopId }
     });
     if (!customer) throw { statusCode: 404, message: 'Customer not found' };
+    if (!customer.is_active) throw { statusCode: 404, message: 'Customer not found' };
 
     if (Number(customer.balance) !== 0) {
       throw { statusCode: 400, message: 'Cannot delete a customer with a non-zero balance' };
