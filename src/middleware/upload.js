@@ -2,10 +2,14 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-// Ensure the typical upload directory exists
+// Ensure the typical upload directory exists (never crash boot on perms).
 const uploadDir = path.join(__dirname, '../../uploads/shops');
-if (!fs.existsSync(uploadDir)) {
+try {
+  if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
+  }
+} catch (err) {
+  console.error(`[upload] cannot create ${uploadDir}: ${err.message} — file uploads will fail until permissions are fixed`);
 }
 
 // Configure storage logic natively
