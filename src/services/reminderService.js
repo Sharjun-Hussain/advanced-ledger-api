@@ -71,8 +71,10 @@ class ReminderService {
       ...parseJsonSafe(shopRow?.settings_data, {}),
     };
     const planLimits = await this.getPlanLimits(shopId);
-    // Effective = owner policy clamped to plan ceilings.
-    const effective = {
+    // Effective = owner policy clamped to plan ceilings, unless a
+    // super-admin override was stored for this shop (web dashboard).
+    const overridden = parseJsonSafe(shopRow?.settings_data, {}).admin_override === true;
+    const effective = overridden ? { ...shopPolicy } : {
       ...shopPolicy,
       cooldown_hours: Math.max(shopPolicy.cooldown_hours, planLimits.min_cooldown_hours),
       monthly_limit_per_customer: Math.min(shopPolicy.monthly_limit_per_customer, planLimits.monthly_per_customer_max),
@@ -81,12 +83,15 @@ class ReminderService {
     return { policy: effective, shop_policy: shopPolicy, plan_limits: planLimits };
   }
 
-  async savePolicy(shopId, patch) {
+  async savePolicy(shopId, patch, opts = {}) {
     const allowed = ['enabled', 'cooldown_hours', 'monthly_limit_per_customer', 'daily_shop_cap', 'quiet_start_hour', 'quiet_end_hour', 'only_if_balance'];
     const clean = {};
     for (const k of allowed) {
       if (patch[k] !== undefined) clean[k] = patch[k];
-    }    if (clean.cooldown_hours !== undefined && (clean.cooldown_hours < 0 || clean.cooldown_hours > 24 * 30)) {
+    }
+    // Owner saves clear any prior admin override; admin saves set it.
+    if (opts.skipPlanCheck) clean.admin_override = true;
+    else clean.admin_override = false;    if (clean.cooldown_hours !== undefined && (clean.cooldown_hours < 0 || clean.cooldown_hours > 24 * 30)) {
       throw { statusCode: 400, message: 'cooldown_hours must be 0–720' };
     }
     if (clean.monthly_limit_per_customer !== undefined && (clean.monthly_limit_per_customer < 1 || clean.monthly_limit_per_customer > 100)) {
@@ -96,15 +101,18 @@ class ReminderService {
       throw { statusCode: 400, message: 'daily_shop_cap must be 1–5000' };
     }
     // Plan ceilings: owner can only go stricter than their billing plan.
+    // Super-admin override (web dashboard) bypasses via opts.skipPlanCheck.
     const planLimits = await this.getPlanLimits(shopId);
-    if (clean.cooldown_hours !== undefined && clean.cooldown_hours < planLimits.min_cooldown_hours) {
-      throw { statusCode: 403, message: `Your plan requires cooldown of at least ${planLimits.min_cooldown_hours}h. Upgrade to send more often.` };
-    }
-    if (clean.monthly_limit_per_customer !== undefined && clean.monthly_limit_per_customer > planLimits.monthly_per_customer_max) {
-      throw { statusCode: 403, message: `Your plan allows max ${planLimits.monthly_per_customer_max} reminders/customer/month. Upgrade for more.` };
-    }
-    if (clean.daily_shop_cap !== undefined && clean.daily_shop_cap > planLimits.daily_shop_cap_max) {
-      throw { statusCode: 403, message: `Your plan allows max ${planLimits.daily_shop_cap_max}/day. Upgrade for more.` };
+    if (!opts.skipPlanCheck) {
+      if (clean.cooldown_hours !== undefined && clean.cooldown_hours < planLimits.min_cooldown_hours) {
+        throw { statusCode: 403, message: `Your plan requires cooldown of at least ${planLimits.min_cooldown_hours}h. Upgrade to send more often.` };
+      }
+      if (clean.monthly_limit_per_customer !== undefined && clean.monthly_limit_per_customer > planLimits.monthly_per_customer_max) {
+        throw { statusCode: 403, message: `Your plan allows max ${planLimits.monthly_per_customer_max} reminders/customer/month. Upgrade for more.` };
+      }
+      if (clean.daily_shop_cap !== undefined && clean.daily_shop_cap > planLimits.daily_shop_cap_max) {
+        throw { statusCode: 403, message: `Your plan allows max ${planLimits.daily_shop_cap_max}/day. Upgrade for more.` };
+      }
     }
     const [row] = await db.Setting.findOrCreate({
       where: { shop_id: shopId, category: POLICY_CATEGORY },

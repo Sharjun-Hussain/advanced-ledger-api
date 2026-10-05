@@ -1,6 +1,6 @@
 const adminService = require('../services/adminService');
 const Joi = require('joi'); // Inline validation for admin patch
-const { successResponse, paginatedResponse } = require('../utils/responseHandler');
+const { successResponse, paginatedResponse, errorResponse } = require('../utils/responseHandler');
 
 const updateShopValidation = Joi.object({
   isActive: Joi.boolean().optional(),
@@ -56,6 +56,27 @@ class AdminController {
     try {
       const overview = await adminService.getSmsOverview();
       successResponse(res, overview, 'SMS overview fetched');
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async getShopReminderPolicy(req, res, next) {
+    try {
+      const reminderService = require('../services/reminderService');
+      const bundle = await reminderService.getPolicy(Number(req.params.id));
+      successResponse(res, bundle, 'Shop reminder policy fetched');
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async saveShopReminderPolicy(req, res, next) {
+    try {
+      const reminderService = require('../services/reminderService');
+      await adminService.getShopById(Number(req.params.id));
+      const policy = await reminderService.savePolicy(Number(req.params.id), req.body || {}, { skipPlanCheck: true });
+      successResponse(res, { policy }, 'Shop reminder policy saved');
     } catch (err) {
       next(err);
     }
