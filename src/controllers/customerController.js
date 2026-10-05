@@ -223,7 +223,9 @@ class CustomerController {
           order: [['transaction_date', 'ASC'], ['id', 'ASC']]
       });
 
-      let balance = parseFloat(customer.balance || 0);
+      // Running balance: replay AR postings from 0 so the final entry
+      // equals customer.balance (do NOT seed with customer.balance).
+      let balance = 0;
       const ledger = transactions.map(t => {
           if (t.type === 'debit') {
               balance += parseFloat(t.amount);

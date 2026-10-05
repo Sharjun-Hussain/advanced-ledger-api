@@ -7,14 +7,13 @@ const login = Joi.object({
 
 const register = Joi.object({
   shopName: Joi.string().min(2).max(150).required(),
-  ownerNic: Joi.string().min(10).max(20).required(),
+  ownerNic: Joi.string().min(10).max(20).optional().allow('', null),
   ownerName: Joi.string().min(2).max(100).required(),
   phone: Joi.string().min(9).max(20).required(),
   password: Joi.string().min(6).required(),
   address: Joi.string().max(255).optional().allow('', null),
   businessType: Joi.string().max(80).optional().allow('', null),
   languagePref: Joi.string().valid('sinhala', 'tamil', 'english').default('sinhala'),
-  is_auto_verified: Joi.boolean().default(false)
 });
 
 const adminLogin = Joi.object({
@@ -32,10 +31,16 @@ const resetPassword = Joi.object({
   new_password: Joi.string().min(6).required(),
 });
 
+const changePassword = Joi.object({
+  oldPassword: Joi.string().required(),
+  newPassword: Joi.string().min(6).required(),
+});
+
 module.exports = {
   login,
   adminLogin,
   register,
   forgotPassword,
   resetPassword,
+  changePassword,
 };

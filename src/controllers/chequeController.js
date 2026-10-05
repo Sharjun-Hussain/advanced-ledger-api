@@ -39,8 +39,27 @@ const getChequeById = async (req, res, next) => {
 const createCheque = async (req, res, next) => {
     try {
         const { shop_id } = req.user;
+        const allowed = ['type', 'cheque_number', 'bank_name', 'branch_name', 'amount', 'cheque_date', 'received_issued_date', 'payee_payor_name', 'reference_type', 'reference_id', 'account_id', 'note'];
+        const payload = {};
+        for (const k of allowed) {
+            if (req.body[k] !== undefined) payload[k] = req.body[k];
+        }
+        if (!payload.type || !['receivable', 'payable'].includes(payload.type)) {
+            return res.status(400).json({ success: false, message: "type must be 'receivable' or 'payable'" });
+        }
+        if (!payload.cheque_number || !payload.bank_name || payload.amount === undefined || !payload.cheque_date) {
+            return res.status(400).json({ success: false, message: 'cheque_number, bank_name, amount and cheque_date are required' });
+        }
+        const amt = Number(payload.amount);
+        if (!Number.isFinite(amt) || amt <= 0) {
+            return res.status(400).json({ success: false, message: 'amount must be a positive number' });
+        }
+        if (payload.account_id) {
+            const acc = await Account.findOne({ where: { id: payload.account_id, shop_id } });
+            if (!acc) return res.status(404).json({ success: false, message: 'Account not found for this shop' });
+        }
         const cheque = await Cheque.create({
-            ...req.body,
+            ...payload,
             shop_id
         });
         return res.status(201).json({ success: true, data: cheque, message: 'Cheque recorded successfully' });
@@ -66,6 +85,12 @@ const updateChequeStatus = async (req, res, next) => {
         if (cheque.status === 'cleared' || cheque.status === 'cancelled') {
             await t.rollback();
             return res.status(400).json({ success: false, message: `Cannot update status from ${cheque.status}` });
+        }
+
+        const allowedStatuses = ['pending', 'cleared', 'bounced', 'cancelled'];
+        if (!allowedStatuses.includes(status)) {
+            await t.rollback();
+            return res.status(400).json({ success: false, message: `status must be one of: ${allowedStatuses.join(', ')}` });
         }
 
         await cheque.update({
@@ -160,11 +185,21 @@ const updateChequeStatus = async (req, res, next) => {
 
             let customer_id = null;
             if (cheque.reference_id) {
+                // reference_id stores cheque.id on Transaction rows (STRING) —
+                // find the original payment posting to recover customer_id.
                 const linkedTx = await Transaction.findOne({
-                    where: { id: cheque.reference_id, shop_id: req.user.shop_id },
+                    where: { reference_id: cheque.id.toString(), shop_id: req.user.shop_id },
                     transaction: t
                 });
                 if (linkedTx) customer_id = linkedTx.customer_id;
+            }
+
+            // Restore the customer balance that was reduced when the cheque was recorded.
+            if (customer_id) {
+                const cust = await db.Customer.findOne({ where: { id: customer_id, shop_id: cheque.shop_id }, transaction: t });
+                if (cust) {
+                    await cust.update({ balance: Number(cust.balance) + Number(cheque.amount), is_locked: false }, { transaction: t });
+                }
             }
 
             if (cheque.type === 'receivable') {
@@ -245,6 +280,9 @@ const deleteCheque = async (req, res, next) => {
 
         if (cheque.status === 'cleared') {
             return res.status(400).json({ success: false, message: 'Cannot delete a cleared cheque' });
+        }
+        if (cheque.status === 'bounced') {
+            return res.status(400).json({ success: false, message: 'Cannot delete a bounced cheque with reversal postings' });
         }
 
         await cheque.destroy();

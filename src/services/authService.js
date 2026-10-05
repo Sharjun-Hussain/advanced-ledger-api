@@ -1,7 +1,14 @@
 const db = require('../models');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const textLkService = require('./textLkService');
+
+function getJwtSecrets() {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error('FATAL: JWT_SECRET env var is required');
+  return { secret, expiresIn: process.env.JWT_EXPIRES_IN || '1h' };
+}
 
 class AuthService {
   async login(phone, password) {
@@ -17,8 +24,8 @@ class AuthService {
 
     const token = jwt.sign(
       { id: user.id, role: user.role, shop_id: user.shop_id },
-      process.env.JWT_SECRET || 'secret',
-      { expiresIn: process.env.JWT_EXPIRES_IN || '1h' }
+      getJwtSecrets().secret,
+      { expiresIn: getJwtSecrets().expiresIn }
     );
 
     return { user, token };
@@ -32,21 +39,32 @@ class AuthService {
 
     const transaction = await db.sequelize.transaction();
     try {
+      const now = new Date();
+      const trialEndsAt = new Date(now);
+      trialEndsAt.setDate(trialEndsAt.getDate() + 14);
       const shop = await db.Shop.create({
         name: data.shopName,
         phone: data.phone,
         address: data.address,
         business_type: data.businessType,
         language_pref: data.languagePref || 'sinhala',
-        subscription_status: data.is_auto_verified ? 'active' : 'trial'
+        // NOTE: client flag is_auto_verified is intentionally ignored —
+        // new shops always start as trial; admin activates after payment.
+        subscription_status: 'trial',
+        trial_ends_at: trialEndsAt
       }, { transaction });
 
       const hash = await bcrypt.hash(data.password, 10);
+      // NIC is optional at signup (app doesn't collect it) — store NULL,
+      // not '', so the UNIQUE constraint doesn't clash on repeat empties.
+      const nic = data.ownerNic && String(data.ownerNic).trim() !== ''
+        ? String(data.ownerNic).trim()
+        : null;
       const user = await db.User.create({
         shop_id: shop.id,
         name: data.ownerName,
         phone: data.phone,
-        nic: data.ownerNic,
+        nic,
         password_hash: hash,
         role: 'owner',
       }, { transaction });
@@ -55,13 +73,16 @@ class AuthService {
 
       const token = jwt.sign(
         { id: user.id, role: user.role, shop_id: shop.id },
-        process.env.JWT_SECRET || 'secret',
-        { expiresIn: process.env.JWT_EXPIRES_IN || '1h' }
+        getJwtSecrets().secret,
+        { expiresIn: getJwtSecrets().expiresIn }
       );
 
       return { user, shop, token };
     } catch (error) {
       await transaction.rollback();
+      if (error?.name === 'SequelizeUniqueConstraintError') {
+        throw { statusCode: 409, message: 'Phone already registered' };
+      }
       throw error;
     }
   }
@@ -73,7 +94,13 @@ class AuthService {
       return { success: true };
     }
 
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    // Invalidate any prior unused OTPs for this phone/purpose (single active OTP).
+    await db.OtpLog.update(
+      { used: true },
+      { where: { phone, purpose: 'forgot_password', used: false } }
+    );
+
+    const otpCode = crypto.randomInt(100000, 1000000).toString();
     
     await db.OtpLog.create({
       phone,
@@ -95,13 +122,15 @@ class AuthService {
   }
 
   async resetPassword(phone, otpCode, newPassword) {
+    // Only the latest unused OTP for this phone is valid.
     const otpLog = await db.OtpLog.findOne({
       where: {
         phone,
         otp_code: otpCode,
         purpose: 'forgot_password',
         used: false
-      }
+      },
+      order: [['created_at', 'DESC']]
     });
 
     if (!otpLog || otpLog.expires_at < new Date()) {

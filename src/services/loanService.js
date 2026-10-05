@@ -101,14 +101,30 @@ class LoanService {
       });
       if (!loan) throw { statusCode: 404, message: 'Active loan not found' };
 
-      const newBalance = Math.max(0, Number(loan.customer.balance) - amount);
+      const numericAmount = Number(amount);
+      if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+        throw { statusCode: 400, message: 'Payment amount must be a positive number' };
+      }
+      const [{ total: alreadyPaid }] = await db.sequelize.query(
+        `SELECT COALESCE(SUM(amount),0) AS total FROM legacy_transactions WHERE loan_id = :loanId AND type = 'payment'`,
+        { replacements: { loanId }, type: db.sequelize.QueryTypes.SELECT, transaction }
+      );
+      const owedOnLoan = Number(loan.amount) - Number(alreadyPaid);
+      if (numericAmount > owedOnLoan) {
+        throw { statusCode: 400, message: `Payment exceeds amount owed on this loan (Rs.${owedOnLoan.toFixed(2)}).` };
+      }
+      if (numericAmount > Number(loan.customer.balance)) {
+        throw { statusCode: 400, message: 'Payment exceeds customer outstanding balance.' };
+      }
+
+      const newBalance = Math.max(0, Number(loan.customer.balance) - numericAmount);
       await loan.customer.update({ balance: newBalance, is_locked: false }, { transaction });
 
       await db.sequelize.query(
         `INSERT INTO legacy_transactions (shop_id, customer_id, loan_id, type, amount, balance_after, created_by, created_at)
          VALUES (:shop_id, :customer_id, :loan_id, :type, :amount, :balance_after, :created_by, :created_at)`,
         {
-          replacements: { shop_id: shopId, customer_id: loan.customer_id, loan_id: loanId, type: 'payment', amount: amount, balance_after: newBalance, created_by: userId || null, created_at: new Date() }, transaction
+          replacements: { shop_id: shopId, customer_id: loan.customer_id, loan_id: loanId, type: 'payment', amount: numericAmount, balance_after: newBalance, created_by: userId || null, created_at: new Date() }, transaction
         }
       );
 
@@ -117,20 +133,20 @@ class LoanService {
         const [cashAccount] = await db.Account.findOrCreate({ where: { shop_id: shopId, code: '1000' }, defaults: { name: 'Cash', type: 'asset' }, transaction });
         
         await accountingService.recordTransaction({
-          shop_id: shopId, account_id: apAccount.id, customer_id: loan.customer_id, amount: amount, type: 'debit', reference_type: 'Loan Payment', reference_id: loan.id.toString(), transaction_date: new Date(), description: `Paid to Distributor ${loan.customer.name}`
+          shop_id: shopId, account_id: apAccount.id, customer_id: loan.customer_id, amount: numericAmount, type: 'debit', reference_type: 'Loan Payment', reference_id: loan.id.toString(), transaction_date: new Date(), description: `Paid to Distributor ${loan.customer.name}`
         }, transaction);
         await accountingService.recordTransaction({
-          shop_id: shopId, account_id: cashAccount.id, customer_id: loan.customer_id, amount: amount, type: 'credit', reference_type: 'Loan Payment', reference_id: loan.id.toString(), transaction_date: new Date(), description: `Paid to Distributor ${loan.customer.name} (Cash)`
+          shop_id: shopId, account_id: cashAccount.id, customer_id: loan.customer_id, amount: numericAmount, type: 'credit', reference_type: 'Loan Payment', reference_id: loan.id.toString(), transaction_date: new Date(), description: `Paid to Distributor ${loan.customer.name} (Cash)`
         }, transaction);
       } else {
         const [arAccount] = await db.Account.findOrCreate({ where: { shop_id: shopId, code: '1100' }, defaults: { name: 'Accounts Receivable', type: 'asset' }, transaction });
         const [cashAccount] = await db.Account.findOrCreate({ where: { shop_id: shopId, code: '1000' }, defaults: { name: 'Cash', type: 'asset' }, transaction });
         
         await accountingService.recordTransaction({
-          shop_id: shopId, account_id: arAccount.id, customer_id: loan.customer_id, amount: amount, type: 'credit', reference_type: 'Loan Payment', reference_id: loan.id.toString(), transaction_date: new Date(), description: `Loan Repayment from ${loan.customer.name}`
+          shop_id: shopId, account_id: arAccount.id, customer_id: loan.customer_id, amount: numericAmount, type: 'credit', reference_type: 'Loan Payment', reference_id: loan.id.toString(), transaction_date: new Date(), description: `Loan Repayment from ${loan.customer.name}`
         }, transaction);
         await accountingService.recordTransaction({
-          shop_id: shopId, account_id: cashAccount.id, customer_id: loan.customer_id, amount: amount, type: 'debit', reference_type: 'Loan Payment', reference_id: loan.id.toString(), transaction_date: new Date(), description: `Loan Repayment from ${loan.customer.name} (Cash)`
+          shop_id: shopId, account_id: cashAccount.id, customer_id: loan.customer_id, amount: numericAmount, type: 'debit', reference_type: 'Loan Payment', reference_id: loan.id.toString(), transaction_date: new Date(), description: `Loan Repayment from ${loan.customer.name} (Cash)`
         }, transaction);
       }
 
@@ -179,11 +195,23 @@ class LoanService {
           { replacements: { newAmount: data.amount, amtDiff: amountDiff, loan_id: loanId }, transaction }
         );
 
-        // Update generic double-entry
-        await db.Transaction.update(
-          { amount: data.amount },
-          { where: { shop_id: shopId, reference_type: 'Loan', reference_id: loanId.toString() }, transaction } 
-        );
+        // Update generic double-entry + keep Account.balance in sync
+        const txns = await db.Transaction.findAll({
+          where: { shop_id: shopId, reference_type: 'Loan', reference_id: loanId.toString() }, transaction
+        });
+        for (const txnRow of txns) {
+          const acc = await db.Account.findByPk(txnRow.account_id, { transaction });
+          if (!acc) continue;
+          const isIncrease =
+            (['asset', 'expense'].includes(acc.type) && txnRow.type === 'debit') ||
+            (['liability', 'equity', 'revenue'].includes(acc.type) && txnRow.type === 'credit');
+          if (isIncrease) {
+            await acc.increment('balance', { by: amountDiff, transaction });
+          } else {
+            await acc.decrement('balance', { by: amountDiff, transaction });
+          }
+          await txnRow.update({ amount: data.amount }, { transaction });
+        }
       }
 
       await loan.update({ 
@@ -226,6 +254,25 @@ class LoanService {
         `DELETE FROM legacy_transactions WHERE loan_id = :loanId`,
         { replacements: { loanId }, transaction }
       );
+
+      // Reverse Account.balance effects before deleting double-entry rows.
+      const postedTxns = await db.Transaction.findAll({
+        where: { shop_id: shopId, reference_id: loanId.toString(), reference_type: ['Loan', 'Loan Payment'] },
+        transaction
+      });
+      for (const txnRow of postedTxns) {
+        const acc = await db.Account.findByPk(txnRow.account_id, { transaction });
+        if (!acc) continue;
+        const isIncrease =
+          (['asset', 'expense'].includes(acc.type) && txnRow.type === 'debit') ||
+          (['liability', 'equity', 'revenue'].includes(acc.type) && txnRow.type === 'credit');
+        const amt = Number(txnRow.amount);
+        if (isIncrease) {
+          await acc.decrement('balance', { by: amt, transaction });
+        } else {
+          await acc.increment('balance', { by: amt, transaction });
+        }
+      }
 
       await db.Transaction.destroy({
         where: { shop_id: shopId, reference_id: loanId.toString(), reference_type: ['Loan', 'Loan Payment'] },

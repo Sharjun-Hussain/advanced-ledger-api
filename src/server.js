@@ -14,6 +14,8 @@ const startServer = async () => {
         // Initialize cron jobs
         const cronJobs = require('./jobs/subscriptionCron');
         cronJobs.initScheduledJobs();
+        const reminderCron = require('./jobs/reminderAutomationCron');
+        reminderCron.initReminderAutomation();
 
         app.listen(PORT, () => {
             logger.info(`🚀 LedgerLK Server listening on port ${PORT}`);

@@ -8,7 +8,7 @@ class ReportService {
     const [totals] = await db.sequelize.query(
       `SELECT
          (SELECT COALESCE(SUM(amount),0) FROM loans WHERE shop_id = :shopId AND DATE(created_at) BETWEEN :from AND :to) AS loans_issued,
-         (SELECT COALESCE(SUM(amount),0) FROM transactions WHERE shop_id = :shopId AND type = 'payment' AND DATE(created_at) BETWEEN :from AND :to) AS collected,
+         (SELECT COALESCE(SUM(amount),0) FROM transactions WHERE shop_id = :shopId AND reference_type = 'Loan Payment' AND DATE(COALESCE(transaction_date, created_at)) BETWEEN :from AND :to) AS collected,
          (SELECT COALESCE(SUM(balance),0) FROM customers WHERE shop_id = :shopId AND is_active = 1) AS outstanding,
          (SELECT COUNT(*) FROM customers WHERE shop_id = :shopId AND is_active = 1 AND is_locked = 1) AS locked_accounts`,
       { replacements: { shopId, from, to }, type: db.sequelize.QueryTypes.SELECT }
@@ -17,17 +17,17 @@ class ReportService {
     const perCustomer = await db.sequelize.query(
       `SELECT c.id, c.name, c.customer_code,
               (SELECT COALESCE(SUM(l.amount),0) FROM loans l WHERE l.customer_id = c.id AND DATE(l.created_at) BETWEEN :from AND :to) AS issued,
-              (SELECT COALESCE(SUM(t.amount),0) FROM transactions t WHERE t.customer_id = c.id AND t.type = 'payment' AND DATE(t.created_at) BETWEEN :from AND :to) AS paid,
+              (SELECT COALESCE(SUM(t.amount),0) FROM transactions t WHERE t.customer_id = c.id AND t.reference_type = 'Loan Payment' AND DATE(COALESCE(t.transaction_date, t.created_at)) BETWEEN :from AND :to) AS paid,
               c.balance
          FROM customers c WHERE c.shop_id = :shopId AND c.is_active = 1 ORDER BY c.balance DESC`,
       { replacements: { shopId, from, to }, type: db.sequelize.QueryTypes.SELECT }
     );
 
     const dailyRows = await db.sequelize.query(
-      `SELECT DATE_FORMAT(created_at, '%Y-%m-%d') AS day, COALESCE(SUM(amount),0) AS total
+      `SELECT DATE_FORMAT(COALESCE(transaction_date, created_at), '%Y-%m-%d') AS day, COALESCE(SUM(amount),0) AS total
          FROM transactions
-        WHERE shop_id = :shopId AND type = 'payment' AND created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
-        GROUP BY DATE_FORMAT(created_at, '%Y-%m-%d')`,
+        WHERE shop_id = :shopId AND reference_type = 'Loan Payment' AND COALESCE(transaction_date, created_at) >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
+        GROUP BY DATE_FORMAT(COALESCE(transaction_date, created_at), '%Y-%m-%d')`,
       { replacements: { shopId }, type: db.sequelize.QueryTypes.SELECT }
     );
 
@@ -52,7 +52,7 @@ class ReportService {
     const rows = await db.sequelize.query(
       `SELECT c.customer_code, c.name, c.phone, c.type,
               (SELECT COALESCE(SUM(l.amount),0) FROM loans l WHERE l.customer_id = c.id AND DATE(l.created_at) BETWEEN :from AND :to) AS issued,
-              (SELECT COALESCE(SUM(t.amount),0) FROM transactions t WHERE t.customer_id = c.id AND t.type = 'payment' AND DATE(t.created_at) BETWEEN :from AND :to) AS paid,
+              (SELECT COALESCE(SUM(t.amount),0) FROM transactions t WHERE t.customer_id = c.id AND t.reference_type = 'Loan Payment' AND DATE(COALESCE(t.transaction_date, t.created_at)) BETWEEN :from AND :to) AS paid,
               c.balance, c.is_locked
          FROM customers c WHERE c.shop_id = :shopId AND c.is_active = 1 ORDER BY c.name`,
       { replacements: { shopId, from, to }, type: db.sequelize.QueryTypes.SELECT }
@@ -61,8 +61,10 @@ class ReportService {
   }
 
   async getRecentTransactions(shopId, limitStr = '50') {
-    const limit = parseInt(limitStr, 10);
+    const parsed = parseInt(limitStr, 10);
+    const limit = Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 200) : 50;
     // Double entry accounting migration - join with customers and accounts
+    // NOTE: LIMIT is interpolated as a validated integer (mysql2 cannot bind LIMIT).
     const rows = await db.sequelize.query(
       `SELECT t.id, t.amount, t.type, t.transaction_date, t.description, t.reference_type,
               c.name as customer_name, c.phone as customer_phone,
@@ -72,8 +74,8 @@ class ReportService {
          LEFT JOIN accounts a ON t.account_id = a.id
         WHERE t.shop_id = :shopId
         ORDER BY t.transaction_date DESC, t.id DESC
-        LIMIT :limit`,
-      { replacements: { shopId, limit }, type: db.sequelize.QueryTypes.SELECT }
+        LIMIT ${limit}`,
+      { replacements: { shopId }, type: db.sequelize.QueryTypes.SELECT }
     );
     return rows;
   }

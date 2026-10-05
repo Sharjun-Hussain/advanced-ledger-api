@@ -22,14 +22,12 @@ const storage = multer.diskStorage({
 
 // Configure file filtering securely
 const fileFilter = (req, file, cb) => {
-    console.log('\n--- MULTER FILE INGESTION ---');
-    console.log(file);
-    console.log('-----------------------------\n');
     const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
     const ext = path.extname(file.originalname).toLowerCase();
     const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
 
-    if (allowedMimeTypes.includes(file.mimetype) || (file.mimetype === 'application/octet-stream' && allowedExtensions.includes(ext))) {
+    // Both mimetype AND extension must agree — no octet-stream bypass.
+    if (allowedMimeTypes.includes(file.mimetype) && allowedExtensions.includes(ext)) {
         cb(null, true);
     } else {
         cb(new Error('Invalid file type. Only JPEG, PNG, and WebP are allowed.'));

@@ -73,11 +73,13 @@ class ActivityService {
    * Fetch Unified Activity Feed
    */
   async getFeed(shopId, limitStr = "50") {
-    const limit = parseInt(limitStr, 10);
+    const parsed = parseInt(limitStr, 10);
+    const limit = Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 200) : 50;
 
     // Fetch robust legacy transactions (which are basically double-entry financial activities)
+    // NOTE: LIMIT interpolated as validated integer (mysql2 cannot bind LIMIT).
     const transactions = await db.sequelize.query(
-      `SELECT t.type, t.transaction_date as created_at, t.amount, t.description, t.reference_type,
+      `SELECT t.id, t.type, t.transaction_date as created_at, t.amount, t.description, t.reference_type,
               c.id as customer_id, c.name as customer_name, a.name as account_name
          FROM transactions t
          LEFT JOIN customers c ON t.customer_id = c.id
@@ -89,12 +91,13 @@ class ActivityService {
             (a.code = '1100' AND t.type = 'debit' AND t.reference_type = 'Loan')
           )
         ORDER BY t.transaction_date DESC, t.id DESC
-        LIMIT :limit`,
-      { replacements: { shopId, limit }, type: db.sequelize.QueryTypes.SELECT },
+        LIMIT ${limit}`,
+      { replacements: { shopId }, type: db.sequelize.QueryTypes.SELECT }
     );
 
     const unified = [
       ...transactions.map((t) => ({
+        id: t.id,
         source: "financial",
         type:
           (t.description || "").toLowerCase().includes("credit sale") ||
@@ -107,6 +110,7 @@ class ActivityService {
         actor: t.customer_name || t.account_name || "General",
         ip_address: null,
         metadata: {
+          transaction_id: t.id,
           customer_id: t.customer_id,
           amount: t.amount,
           reference: t.reference_type,

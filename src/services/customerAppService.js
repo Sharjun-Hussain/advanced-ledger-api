@@ -24,12 +24,9 @@ class CustomerAppService {
       { replacements: { customerId }, type: db.sequelize.QueryTypes.SELECT }
     );
 
-    const customer = await db.sequelize.query(
-      `SELECT opening_balance FROM customers WHERE id = :customerId`,
-      { replacements: { customerId }, type: db.sequelize.QueryTypes.SELECT }
-    );
-    
-    let balance = parseFloat(customer[0]?.opening_balance || 0);
+    // Running balance: start at 0 and replay AR postings in order.
+    // (customers.balance already equals the final total — do NOT add it on top.)
+    let balance = 0;
     const ledger = transactions.map(t => {
       if (t.type === 'debit') {
         balance += parseFloat(t.amount);

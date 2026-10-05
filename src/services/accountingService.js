@@ -10,7 +10,9 @@ class AccountingService {
             { code: '1100', name: 'Accounts Receivable', type: 'asset' },
             { code: '1000', name: 'Cash', type: 'asset' },
             { code: '1010', name: 'Bank', type: 'asset' },
+            { code: '1050', name: 'Cheques in Hand', type: 'asset' },
             { code: '2100', name: 'Accounts Payable', type: 'liability' },
+            { code: '2110', name: 'Cheques Payable', type: 'liability' },
             { code: '3900', name: 'Opening Balance Equity', type: 'equity' },
             { code: '4000', name: 'Sales Revenue', type: 'revenue' },
             { code: '5000', name: 'Cost of Goods Sold', type: 'expense' },
@@ -49,6 +51,9 @@ class AccountingService {
         const account = await Account.findByPk(account_id, { transaction });
         if (!account) {
             throw new Error(`Account with ID ${account_id} not found`);
+        }
+        if (String(account.shop_id) !== String(shop_id)) {
+            throw new Error('Account does not belong to this shop');
         }
 
         const record = await Transaction.create({
@@ -139,12 +144,8 @@ class AccountingService {
             if (t.type === 'debit') balance += amount;
             else balance -= amount;
         });
- 
-        const customer = await db.Customer.findByPk(customer_id, { transaction });
-        if (customer) {
-            balance += parseFloat(customer.balance || 0); // LedgerLK customer uses "balance" instead of opening_balance
-        }
- 
+
+        // NOTE: customers.balance already equals the AR total above — do not add it again.
         return balance;
     }
 }

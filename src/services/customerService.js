@@ -14,7 +14,9 @@ class CustomerService {
     }
 
     const { Op } = require('sequelize');
-    const offset = (Number(page) - 1) * Number(limit);
+    const safePage = Math.max(1, parseInt(page, 10) || 1);
+    const safeLimit = Math.min(Math.max(1, parseInt(limit, 10) || 50), 200);
+    const offset = (safePage - 1) * safeLimit;
 
     const customers = await db.Customer.findAll({
       where: {
@@ -29,7 +31,7 @@ class CustomerService {
       },
       attributes: ['id', 'customer_code', 'name', 'phone', 'type', 'loan_limit', 'balance', 'is_locked', 'is_active', 'created_at'],
       order: [['name', 'ASC']],
-      limit: Number(limit),
+      limit: safeLimit,
       offset
     });
 
@@ -147,8 +149,8 @@ class CustomerService {
     });
     if (!customer) throw { statusCode: 404, message: 'Customer not found' };
 
-    if (Number(customer.balance) > 0) {
-      throw { statusCode: 400, message: 'Cannot delete a customer with an active outstanding balance' };
+    if (Number(customer.balance) !== 0) {
+      throw { statusCode: 400, message: 'Cannot delete a customer with a non-zero balance' };
     }
 
     await customer.update({ is_active: false });
@@ -169,7 +171,15 @@ class CustomerService {
       });
       if (!customer) throw { statusCode: 404, message: 'Customer not found' };
 
-      const newBalance = Math.max(0, Number(customer.balance) - amount);
+      const numericAmount = Number(amount);
+      if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+        throw { statusCode: 400, message: 'Payment amount must be a positive number' };
+      }
+      if (numericAmount > Number(customer.balance)) {
+        throw { statusCode: 400, message: `Payment (Rs.${numericAmount.toFixed(2)}) exceeds outstanding balance (Rs.${Number(customer.balance).toFixed(2)}). Overpayments are not allowed.` };
+      }
+
+      const newBalance = Math.max(0, Number(customer.balance) - numericAmount);
       await customer.update({ balance: newBalance, is_locked: false }, { transaction });
 
       const loans = await db.sequelize.query(
@@ -179,7 +189,7 @@ class CustomerService {
         { replacements: { customerId, shopId }, type: db.sequelize.QueryTypes.SELECT, transaction }
       );
 
-      let remaining = amount;
+      let remaining = numericAmount;
       for (const loan of loans) {
         if (remaining <= 0) break;
         const owed = Number(loan.amount) - Number(loan.paid);
@@ -192,7 +202,7 @@ class CustomerService {
           `INSERT INTO legacy_transactions (shop_id, customer_id, loan_id, type, amount, balance_after, created_by, created_at)
            VALUES (:shopId, :customerId, :loanId, 'payment', :amount, :balanceAfter, :userId, :createdAt)`,
           {
-            replacements: { shopId, customerId, loanId: loan.id, amount: apply, balanceAfter: Math.max(0, Number(customer.balance) - (amount - remaining)), userId: userId || null, createdAt: new Date() }, transaction
+            replacements: { shopId, customerId, loanId: loan.id, amount: apply, balanceAfter: Math.max(0, Number(customer.balance) - (numericAmount - remaining)), userId: userId || null, createdAt: new Date() }, transaction
           }
         );
 
@@ -203,14 +213,17 @@ class CustomerService {
       }
 
       if (paymentMethod === 'cheque') {
+        if (!chequeDetails?.cheque_number || !chequeDetails?.bank_name || !chequeDetails?.cheque_date) {
+          throw { statusCode: 400, message: 'cheque_number, bank_name and cheque_date are required for cheque payments' };
+        }
         const cheque = await db.Cheque.create({
           shop_id: shopId,
           type: customer.kind === 'distributor' ? 'payable' : 'receivable',
-          cheque_number: chequeDetails?.cheque_number || 'UNKNOWN',
-          bank_name: chequeDetails?.bank_name || 'UNKNOWN',
+          cheque_number: chequeDetails.cheque_number,
+          bank_name: chequeDetails.bank_name,
           branch_name: chequeDetails?.branch_name || null,
-          amount: amount,
-          cheque_date: chequeDetails?.cheque_date || new Date(),
+          amount: numericAmount,
+          cheque_date: chequeDetails.cheque_date,
           status: 'pending',
           payee_payor_name: customer.name,
           reference_type: 'Payment'
@@ -222,10 +235,10 @@ class CustomerService {
           const [chequesPayable] = await db.Account.findOrCreate({ where: { shop_id: shopId, code: '2110' }, defaults: { name: 'Cheques Payable', type: 'liability' }, transaction });
 
           await accountingService.recordTransaction({
-            shop_id: shopId, account_id: apAccount.id, customer_id: customerId, amount: amount, type: 'debit', reference_type: 'Cheque', reference_id: cheque.id, transaction_date: new Date(), description: `Paid by Cheque to ${customer.name}`
+            shop_id: shopId, account_id: apAccount.id, customer_id: customerId, amount: numericAmount, type: 'debit', reference_type: 'Cheque', reference_id: cheque.id, transaction_date: new Date(), description: `Paid by Cheque to ${customer.name}`
           }, transaction);
           await accountingService.recordTransaction({
-            shop_id: shopId, account_id: chequesPayable.id, customer_id: customerId, amount: amount, type: 'credit', reference_type: 'Cheque', reference_id: cheque.id, transaction_date: new Date(), description: `Cheque Issued to ${customer.name}`
+            shop_id: shopId, account_id: chequesPayable.id, customer_id: customerId, amount: numericAmount, type: 'credit', reference_type: 'Cheque', reference_id: cheque.id, transaction_date: new Date(), description: `Cheque Issued to ${customer.name}`
           }, transaction);
         } else {
           // We receive a Cheque: AR Down (Credit), Cheques In Hand Up (Debit)
@@ -233,10 +246,10 @@ class CustomerService {
           const [chequesInHand] = await db.Account.findOrCreate({ where: { shop_id: shopId, code: '1050' }, defaults: { name: 'Cheques in Hand', type: 'asset' }, transaction });
 
           await accountingService.recordTransaction({
-            shop_id: shopId, account_id: arAccount.id, customer_id: customerId, amount: amount, type: 'credit', reference_type: 'Cheque', reference_id: cheque.id, transaction_date: new Date(), description: `Received Cheque from ${customer.name}`
+            shop_id: shopId, account_id: arAccount.id, customer_id: customerId, amount: numericAmount, type: 'credit', reference_type: 'Cheque', reference_id: cheque.id, transaction_date: new Date(), description: `Received Cheque from ${customer.name}`
           }, transaction);
           await accountingService.recordTransaction({
-            shop_id: shopId, account_id: chequesInHand.id, customer_id: customerId, amount: amount, type: 'debit', reference_type: 'Cheque', reference_id: cheque.id, transaction_date: new Date(), description: `Cheque Received from ${customer.name}`
+            shop_id: shopId, account_id: chequesInHand.id, customer_id: customerId, amount: numericAmount, type: 'debit', reference_type: 'Cheque', reference_id: cheque.id, transaction_date: new Date(), description: `Cheque Received from ${customer.name}`
           }, transaction);
         }
       } else {
@@ -246,11 +259,11 @@ class CustomerService {
           const [cashAccount] = await db.Account.findOrCreate({ where: { shop_id: shopId, code: '1000' }, defaults: { name: 'Cash', type: 'asset' }, transaction });
 
           await accountingService.recordTransaction({
-            shop_id: shopId, account_id: apAccount.id, customer_id: customerId, amount: amount, type: 'debit', reference_type: 'Payment', transaction_date: new Date(), description: `Paid to Distributor ${customer.name}`
+            shop_id: shopId, account_id: apAccount.id, customer_id: customerId, amount: numericAmount, type: 'debit', reference_type: 'Payment', transaction_date: new Date(), description: `Paid to Distributor ${customer.name}`
           }, transaction);
 
           await accountingService.recordTransaction({
-            shop_id: shopId, account_id: cashAccount.id, customer_id: customerId, amount: amount, type: 'credit', reference_type: 'Payment', transaction_date: new Date(), description: `Paid to Distributor ${customer.name} (Cash)`
+            shop_id: shopId, account_id: cashAccount.id, customer_id: customerId, amount: numericAmount, type: 'credit', reference_type: 'Payment', transaction_date: new Date(), description: `Paid to Distributor ${customer.name} (Cash)`
           }, transaction);
         } else {
           // Customer Payment (They pay us: Cash In, Asset Down)
@@ -258,11 +271,11 @@ class CustomerService {
           const [cashAccount] = await db.Account.findOrCreate({ where: { shop_id: shopId, code: '1000' }, defaults: { name: 'Cash', type: 'asset' }, transaction });
 
           await accountingService.recordTransaction({
-            shop_id: shopId, account_id: arAccount.id, customer_id: customerId, amount: amount, type: 'credit', reference_type: 'Payment', transaction_date: new Date(), description: `Received Payment from ${customer.name}`
+            shop_id: shopId, account_id: arAccount.id, customer_id: customerId, amount: numericAmount, type: 'credit', reference_type: 'Payment', transaction_date: new Date(), description: `Received Payment from ${customer.name}`
           }, transaction);
 
           await accountingService.recordTransaction({
-            shop_id: shopId, account_id: cashAccount.id, customer_id: customerId, amount: amount, type: 'debit', reference_type: 'Payment', transaction_date: new Date(), description: `Received Payment from ${customer.name} (Cash)`
+            shop_id: shopId, account_id: cashAccount.id, customer_id: customerId, amount: numericAmount, type: 'debit', reference_type: 'Payment', transaction_date: new Date(), description: `Received Payment from ${customer.name} (Cash)`
           }, transaction);
         }
       }

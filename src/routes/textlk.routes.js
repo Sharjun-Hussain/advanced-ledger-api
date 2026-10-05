@@ -14,7 +14,7 @@ router.post('/contacts', authorize('owner', 'admin', 'staff'), textLkController.
 router.patch('/contacts/:uid', authorize('owner', 'admin', 'staff'), textLkController.updateContactGroup);
 router.delete('/contacts/:uid', authorize('owner', 'admin', 'staff'), textLkController.deleteContactGroup);
 router.post('/sync', authorize('owner', 'admin', 'staff'), textLkController.syncCustomers);
-router.post('/send', textLkController.sendSms);
+router.post('/send', authorize('owner', 'admin', 'staff'), require('../middleware/rateLimiter').smsLimiter, textLkController.sendSms);
 
 // Templates
 router.get('/templates', textLkController.getTemplates);

@@ -30,7 +30,8 @@ class TextLkService {
             config.senderId = config.textlk_sender_id || config.senderId;
             
             if (config.apiKey && typeof config.apiKey === 'string' && config.apiKey.startsWith('enc:')) {
-                config.apiKey = decrypt(config.apiKey);
+                const dec = decrypt(config.apiKey.slice(4));
+                config.apiKey = dec || null;
             }
             console.log('[TextLk] _getFullConfig: Final global config -> enabled:', config.enabled, 'apiKey exists:', !!config.apiKey);
             return config;
@@ -62,10 +63,15 @@ class TextLkService {
         // Correctly pull enabled flag from Shop table
         config.enabled = shop?.textlk_enabled === true;
         if (config.apiKey && typeof config.apiKey === 'string' && config.apiKey.startsWith('enc:')) {
-           config.apiKey = decrypt(config.apiKey);
-        } else if (config.apiKey) {
-           config.apiKey = decrypt(config.apiKey); // assuming legacy logic always encrypted
+           const dec = decrypt(config.apiKey.slice(4));
+           if (!dec) {
+             logger.error('Text.lk: stored API key failed to decrypt; treating as missing');
+             config.apiKey = null;
+           } else {
+             config.apiKey = dec;
+           }
         }
+        // else: plaintext legacy key — keep as-is (do not pass through decrypt).
 
         // Global fallback for missing API Key or Sender ID
         if (!config.apiKey || !config.senderId) {

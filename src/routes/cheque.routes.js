@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const chequeController = require('../controllers/chequeController');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, authorize } = require('../middleware/auth');
 
-router.use(authenticate);
+router.use(authenticate, authorize('owner', 'staff', 'admin'));
 
 router.get('/', chequeController.getAllCheques);
 router.get('/:id', chequeController.getChequeById);

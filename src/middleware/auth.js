@@ -1,8 +1,12 @@
 const jwt = require('jsonwebtoken');
 const db = require('../models');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'secret';
+const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
+
+if (!JWT_SECRET) {
+  throw new Error('FATAL: JWT_SECRET env var is required. Refusing to start with insecure default.');
+}
 
 function signToken(payload) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
@@ -47,6 +51,10 @@ async function authenticate(req, res, next) {
     );
     if (!user || user.length === 0 || !user[0].is_active) {
       return res.status(401).json({ error: 'Unauthorized: inactive or missing user' });
+    }
+    // Enforce subscription: expired shops cannot use the API (admin bypasses).
+    if (user[0].role !== 'admin' && user[0].subscription_status === 'expired') {
+      return res.status(403).json({ error: 'Forbidden: subscription expired. Please renew.' });
     }
     req.user = user[0];
     next();

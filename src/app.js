@@ -11,10 +11,18 @@ const rateLimiter = require('./middleware/rateLimiter');
 const app = express();
 
 // Middlewares
+app.set('trust proxy', 1);
 app.use(helmet());
+const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:5173')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
 const corsOptions = {
     origin: (origin, callback) => {
-        callback(null, true); 
+        // Allow non-browser / same-origin requests with no Origin header
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin)) return callback(null, true);
+        return callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
     optionsSuccessStatus: 200,

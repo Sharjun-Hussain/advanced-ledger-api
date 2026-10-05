@@ -62,6 +62,9 @@ class AuthController {
 
       const { email, password } = value;
       const result = await authService.login(email, password);
+      if (result.user.role !== 'admin') {
+        return errorResponse(res, 'Invalid phone or password', 401);
+      }
       
       const mappedUser = {
           id: result.user.id,
@@ -134,12 +137,12 @@ class AuthController {
   }
   async changePassword(req, res, next) {
     try {
-      const { oldPassword, newPassword } = req.body;
-      if (!oldPassword || !newPassword) {
-        return res.status(400).json({ status: 'error', message: 'oldPassword and newPassword are required' });
+      const { error, value } = authValidation.changePassword.validate(req.body);
+      if (error) {
+        return errorResponse(res, error.details[0].message, 400);
       }
 
-      await authService.changePassword(req.user.id, oldPassword, newPassword);
+      await authService.changePassword(req.user.id, value.oldPassword, value.newPassword);
       res.status(200).json({ status: 'success', message: 'Password updated successfully' });
     } catch (err) {
       next(err);
