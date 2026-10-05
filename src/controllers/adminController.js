@@ -52,6 +52,15 @@ class AdminController {
     }
   }
 
+  async getSmsOverview(req, res, next) {
+    try {
+      const overview = await adminService.getSmsOverview();
+      successResponse(res, overview, 'SMS overview fetched');
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async getShops(req, res, next) {
     try {
       const { rows, count, page, limit } = await adminService.getShops(req.query);

@@ -2,6 +2,83 @@ const db = require('../models');
 const bcrypt = require('bcryptjs');
 
 class AdminService {
+  async getSmsOverview() {
+    const q = (sql, replacements = {}) =>
+      db.sequelize.query(sql, { replacements, type: db.sequelize.QueryTypes.SELECT });
+
+    const totalRows = await q(
+      `SELECT COUNT(*) AS total,
+              SUM(status = 'sent') AS sent,
+              SUM(status = 'failed') AS failed,
+              SUM(status = 'pending') AS pending
+         FROM reminders`
+    ).catch(() => []);
+    const totals = totalRows[0] || {};
+    const monthRows = await q(
+      `SELECT SUM(status = 'sent') AS sent,
+              SUM(status = 'failed') AS failed
+         FROM reminders WHERE sent_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')`
+    ).catch(() => []);
+    const month = monthRows[0] || {};
+    const todayRows = await q(
+      `SELECT SUM(status = 'sent') AS sent FROM reminders WHERE DATE(sent_at) = CURDATE()`
+    ).catch(() => []);
+    const today = todayRows[0] || {};
+
+    // Last 14 days, sent per day (zero-filled client-side).
+    const daily = await q(
+      `SELECT DATE(sent_at) AS day, COUNT(*) AS sent
+         FROM reminders
+        WHERE status = 'sent' AND sent_at >= DATE_SUB(CURDATE(), INTERVAL 13 DAY)
+        GROUP BY DATE(sent_at) ORDER BY day ASC`
+    ).catch(() => []);
+
+    // Top shops by volume this month.
+    const topShops = await q(
+      `SELECT r.shop_id, s.name AS shop_name,
+              SUM(r.status = 'sent') AS sent,
+              SUM(r.status = 'failed') AS failed
+         FROM reminders r LEFT JOIN shops s ON s.id = r.shop_id
+        WHERE r.sent_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+        GROUP BY r.shop_id, s.name ORDER BY sent DESC LIMIT 10`
+    ).catch(() => []);
+
+    // Platform Text.lk credit balance (global config). Never throws.
+    let textlkBalance = 'N/A';
+    try {
+      const textLkService = require('./textLkService');
+      const bal = await textLkService.getBalance(null);
+      textlkBalance = bal?.data?.remaining_balance ?? bal?.remaining_balance ?? 'N/A';
+    } catch (_) {}
+
+    const byDay = [];
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const found = daily.find((r) => String(r.day).slice(0, 10) === key);
+      byDay.push({ day: key, sent: Number(found?.sent || 0) });
+    }
+
+    return {
+      total: Number(totals?.total || 0),
+      sent: Number(totals?.sent || 0),
+      failed: Number(totals?.failed || 0),
+      pending: Number(totals?.pending || 0),
+      monthSent: Number(month?.sent || 0),
+      monthFailed: Number(month?.failed || 0),
+      todaySent: Number(today?.sent || 0),
+      textlkBalance,
+      daily: byDay,
+      topShops: topShops.map((r) => ({
+        shop_id: r.shop_id,
+        shop_name: r.shop_name || `Shop #${r.shop_id}`,
+        sent: Number(r.sent || 0),
+        failed: Number(r.failed || 0),
+      })),
+    };
+  }
+
   async getStats() {
     const [shopsTotal] = await db.sequelize.query('SELECT COUNT(*) AS total FROM shops', { type: db.sequelize.QueryTypes.SELECT });
     const [activeShops] = await db.sequelize.query('SELECT COUNT(*) AS total FROM shops WHERE is_active = 1', { type: db.sequelize.QueryTypes.SELECT });

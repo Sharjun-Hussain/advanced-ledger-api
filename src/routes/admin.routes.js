@@ -15,6 +15,7 @@ router.use(authorize('admin'));
 
 router.get('/stats', adminController.getStats.bind(adminController));
 router.get('/dashboard/stats', adminController.getStats.bind(adminController));
+router.get('/sms/overview', adminController.getSmsOverview.bind(adminController));
 router.get('/settings', adminSettingsController.getSettings.bind(adminSettingsController));
 router.post('/settings', upload.fields([{ name: 'logo', maxCount: 1 }, { name: 'favicon', maxCount: 1 }]), adminSettingsController.saveSettings.bind(adminSettingsController));
 router.get('/activity-logs', adminController.getActivityLogs.bind(adminController));
